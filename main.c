@@ -267,6 +267,9 @@ construct_stream (IceStreamer *self,
   convert = element_factory_make_with_group_name ("audioconvert", group);
   resample = element_factory_make_with_group_name ("audioresample", group);
 
+  /* allow dropping old buffers if transmission is taking too long */
+  g_object_set (queue, "leaky", 2, NULL);
+
   gst_bin_add_many (GST_BIN (bin), queue, convert, resample, encoder, shout2send, NULL);
   if (mux)
     gst_bin_add (GST_BIN (bin), mux);
