@@ -1,6 +1,17 @@
 # IceStreamer
 A simple live audio streamer, intended as a replacement for DarkIce.
 
+IceStreamer supports only a single input source, which it can encode to multiple
+formats, in parallel, and send to multiple servers. It aims to cover the simple
+usecase of streaming audio for a web radio station.
+
+Robustness in IceStreamer is of major concern, so the most important feature
+perhaps is that it never stops when there are network errors while sending.
+If a certain stream is failing to send, it will reset its state and try
+establishing a new connection after a while. Note, though, that this feature does
+not work very well with GStreamer versions prior to 1.13.1, as it takes way too long
+to timeout (see https://bugzilla.gnome.org/show_bug.cgi?id=571722 for details).
+
 Supported capture interfaces:
 * Jack
 * ALSA
