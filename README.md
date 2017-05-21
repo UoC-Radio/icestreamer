@@ -47,7 +47,7 @@ configuration file with the -c/--config command line switch.
 The configuration file should be in the following format:
 
     [input]
-    # Supported sources: jack, alsa, pulse, auto (the default)
+    # Supported sources: jack, alsa, pulse, test, auto (the default)
     source=alsa
 
     # Here you can set any properties of GStreamer's jackaudiosrc, alsasrc, pulsesrc

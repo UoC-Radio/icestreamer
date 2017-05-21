@@ -138,6 +138,8 @@ construct_source (IceStreamer *self,
     element_factory = "alsasrc";
   else if (g_str_equal (value, "pulse"))
     element_factory = "pulsesrc";
+  else if (g_str_equal (value, "test"))
+    element_factory = "audiotestsrc";
 
   GST_DEBUG ("Attempting to construct source element %s for input source %s", element_factory,
       value);
@@ -160,6 +162,10 @@ construct_source (IceStreamer *self,
       return NULL;
     }
   }
+
+  /* force audiotestsrc to behave like a live source */
+  if (g_str_equal (element_factory, "audiotestsrc"))
+    g_object_set (element, "is-live", TRUE, NULL);
 
   /* make sure it works */
   if (gst_element_set_state (element, GST_STATE_READY) != GST_STATE_CHANGE_SUCCESS) {
