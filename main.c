@@ -423,6 +423,7 @@ bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
       bin_sinkpad = gst_element_get_static_pad (stream_bin, "sink");
       tee_srcpad = gst_pad_get_peer (bin_sinkpad);
       gst_pad_unlink (tee_srcpad, bin_sinkpad);
+      gst_element_release_request_pad (self->tee, tee_srcpad);
       gst_element_set_state (stream_bin, GST_STATE_NULL);
       self->discncted_streams = g_list_prepend (self->discncted_streams, stream_bin);
 
