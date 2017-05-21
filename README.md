@@ -29,6 +29,7 @@ installed:
 * alsasrc
 * audioconvert
 * audioresample
+* audiotestsrc
 
 ### From gstreamer-plugins-good:
 * shout2send
