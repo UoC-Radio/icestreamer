@@ -40,7 +40,6 @@ struct _IceStreamer
 static void
 ice_streamer_free (IceStreamer *streamer)
 {
-  g_list_foreach (streamer->discncted_streams, (GFunc) g_object_unref, NULL);
   g_clear_object (&streamer->pipeline);
   g_free (streamer);
 }
