@@ -129,7 +129,7 @@ construct_source (IceStreamer *self,
   g_autoptr (GError) internal_error = NULL;
 
   /* find out which element to construct and construct it */
-  value = keyfile_get_string_with_fallback (keyfile, "input", "system", "auto");
+  value = keyfile_get_string_with_fallback (keyfile, "input", "source", "auto");
   if (g_str_equal (value, "auto"))
     element_factory = "autoaudiosrc";
   else if (g_str_equal (value, "jack"))
@@ -139,11 +139,11 @@ construct_source (IceStreamer *self,
   else if (g_str_equal (value, "pulse"))
     element_factory = "pulsesrc";
 
-  GST_DEBUG ("Attempting to construct source element %s for input system %s", element_factory,
+  GST_DEBUG ("Attempting to construct source element %s for input source %s", element_factory,
       value);
 
   if (!element_factory || !(element = gst_element_factory_make (element_factory, NULL))) {
-    g_set_error (error, 0, 0, "Failed to construct source element (system = %s, factory = %s)\n",
+    g_set_error (error, 0, 0, "Failed to construct source element (source = %s, factory = %s)\n",
         value, element_factory);
     return NULL;
   }
