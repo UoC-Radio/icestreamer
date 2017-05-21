@@ -267,6 +267,9 @@ construct_stream (IceStreamer *self,
   convert = element_factory_make_with_group_name ("audioconvert", group);
   resample = element_factory_make_with_group_name ("audioresample", group);
 
+  /* allow the bin to go to PLAYING independently of the pipeline or other bins */
+  g_object_set (bin, "async-handling", TRUE, NULL);
+
   /* allow dropping old buffers if transmission is taking too long */
   g_object_set (queue, "leaky", 2, NULL);
 
