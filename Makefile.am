@@ -1,8 +1,8 @@
 bin_PROGRAMS = icestreamer
 
 icestreamer_SOURCES = main.c
-icestreamer_LDADD = $(GStreamer_LIBS)
-icestreamer_CFLAGS = ${CFLAGS} ${GStreamer_CFLAGS}
+icestreamer_LDADD = $(GStreamer_LIBS) $(GLib_LIBS)
+icestreamer_CFLAGS = ${CFLAGS} ${GStreamer_CFLAGS} $(GLib_CFLAGS)
 
 #Also clean up after autoconf
 distclean-local:

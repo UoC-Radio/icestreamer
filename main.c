@@ -185,6 +185,7 @@ construct_stream (IceStreamer *self,
   g_autofree gchar *value = NULL;
   const gchar *encoder_factory = NULL;
   const gchar *mux_factory = NULL;
+  GstTagSetter *tagsetter = NULL;
   gboolean mux_required = TRUE;
 
   /* find out which encoder & mux to construct */
@@ -290,7 +291,145 @@ construct_stream (IceStreamer *self,
     gst_element_add_pad (bin, gst_ghost_pad_new ("sink", target));
   }
 
+  tagsetter = GST_TAG_SETTER (shout2send);
+
+  gst_tag_setter_set_tag_merge_mode (tagsetter, GST_TAG_MERGE_REPLACE);
+
   return g_steal_pointer (&bin);
+}
+
+static void
+update_metadata_callback (GFileMonitor *monitor,
+                          GFile  *file,
+                          GFile  *other_file,
+                          GFileMonitorEvent event_type,
+                          gpointer data)
+{
+  IceStreamer *self = data;
+  GBytes *file_bytes = NULL;
+  g_autoptr (GError) error = NULL;
+  g_autofree gchar **metadata = NULL;
+  g_autofree gchar *artist = NULL;
+  g_autofree gchar *title = NULL;
+  g_autofree gchar *file_contents = NULL;
+  GstEvent *tag_event = NULL;
+  GList *curr = NULL;
+  gsize file_len = 0;
+
+  if (event_type != G_FILE_MONITOR_EVENT_CHANGED &&
+      event_type != G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT) {
+    g_print ("something weird happened to the metadata file (%u)\n", event_type);
+    g_print ("disabling metadata monitor\n");
+    g_file_monitor_cancel (monitor);
+    g_object_unref (monitor);
+    g_object_unref (file);
+    return;
+  }
+
+  file_bytes = g_file_load_bytes (file, NULL, NULL, &error);
+  if (error) {
+    g_print ("couldn't read metadata file: %s\n", error->message);
+    g_print ("disabling metadata monitor\n");
+    g_file_monitor_cancel (monitor);
+    g_object_unref (monitor);
+    g_object_unref (file);
+    return;
+  }
+
+  file_contents = (gchar*) g_bytes_unref_to_data (file_bytes, &file_len);
+
+  if (!strnlen(file_contents, file_len)) {
+    g_print ("got malformed metadata\n");
+    return;
+  }
+
+  if (!g_utf8_validate_len (file_contents, file_len, NULL)) {
+    g_print ("got malformed metadata\n");
+    return;
+  }
+
+  file_contents = g_strstrip (file_contents);
+
+  if (!g_strrstr(file_contents, "\n")) {
+    g_print ("got malformed metadata\n");
+    return;
+  }
+
+  metadata = g_strsplit (file_contents, "\n", 3);
+  if (g_strv_length(metadata) != 2) {
+    g_print ("got malformed metadata\n");
+    return;
+  }
+
+  artist = g_str_to_ascii (metadata[0], NULL);
+  title = g_str_to_ascii (metadata[1], NULL);
+
+  GST_DEBUG ("Got metadata: a: %s t: %s\n", artist, title);
+
+  if (!self->tags)
+    self->tags = gst_tag_list_new_empty();
+
+  gst_tag_list_add (self->tags, GST_TAG_MERGE_REPLACE, GST_TAG_ARTIST, artist, NULL);
+  gst_tag_list_add (self->tags, GST_TAG_MERGE_REPLACE, GST_TAG_TITLE, title, NULL);
+  gst_tag_list_set_scope (self->tags, GST_TAG_SCOPE_GLOBAL);
+
+  tag_event = gst_event_new_tag (self->tags);
+  if (!gst_element_send_event (self->pipeline, tag_event))
+    g_print ("failed to send tag event\n");
+
+  return;
+}
+
+static gboolean
+setup_metadata_handler (IceStreamer *self, GKeyFile *keyfile, GError **error)
+{
+  g_autofree gchar *filename = NULL;
+  GCancellable *cancellable = NULL;
+  g_autoptr (GError) internal_error = NULL;
+  GFile *mtdat_file = NULL;
+  GFileMonitor *mtdat_file_monitor = NULL;
+  guint ret = 0;
+
+  filename = g_key_file_get_string (keyfile, "metadata", "file", &internal_error);
+  if (internal_error) {
+    g_set_error (error, 0, 0, "no metadata file provided: %s\n", internal_error->message);
+    return FALSE;
+  }
+
+  mtdat_file = g_file_new_for_path (filename);
+  if (!g_file_query_exists (mtdat_file, NULL)) {
+    g_set_error (error, 0, 0, "provided metadata file doesn't exist\n");
+    return FALSE;
+  }
+
+  cancellable = g_cancellable_new ();
+  mtdat_file_monitor = g_file_monitor_file (mtdat_file, G_FILE_MONITOR_NONE,
+                                            cancellable, &internal_error);
+  if (internal_error) {
+    g_set_error (error, 0, 0, "could not initialize metadata file monitor: %s\n",
+                 internal_error->message);
+    g_object_unref (mtdat_file);
+    return FALSE;
+  }
+
+  ret = g_signal_connect(mtdat_file_monitor, "changed",
+                         G_CALLBACK(update_metadata_callback), self);
+  if (ret <= 0) {
+    g_set_error (error, 0, 0, "could not connect to metadata file monitor\n");
+    g_file_monitor_cancel (mtdat_file_monitor);
+    g_object_unref (mtdat_file_monitor);
+    g_object_unref (mtdat_file);
+    return FALSE;
+  }
+
+  self->mtdat_file = mtdat_file;
+  self->mtdat_file_monitor = mtdat_file_monitor;
+
+  /* force an update */
+  update_metadata_callback (mtdat_file_monitor, mtdat_file,
+                            NULL, G_FILE_MONITOR_EVENT_CHANGED, self);
+
+  return TRUE;
 }
 
 static gboolean
@@ -338,6 +477,10 @@ icestreamer_load (IceStreamer *self, const gchar *conf_file)
     if (g_str_equal (*group, "input"))
       continue;
 
+    /* skip the metadata group, this is parsed by setup_metadata_handler() */
+    if (g_str_equal (*group, "metadata"))
+      continue;
+
     GST_DEBUG ("Constructing stream '%s'", *group);
 
     stream = construct_stream (self, keyfile, *group, &error);
@@ -361,6 +504,10 @@ icestreamer_load (IceStreamer *self, const gchar *conf_file)
     g_print ("No streams specified in the configuration file\n");
     return FALSE;
   }
+
+  setup_metadata_handler (self, keyfile, &error);
+  if (error)
+    g_print("%s\n", error->message);
 
   return TRUE;
 }
@@ -452,9 +599,14 @@ bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
 }
 
 static gboolean
-exit_handler (gpointer loop)
+exit_handler (gpointer data)
 {
-  g_main_loop_quit ((GMainLoop *) loop);
+  IceStreamer *self = data;
+  g_file_monitor_cancel (self->mtdat_file_monitor);
+  g_object_unref (self->mtdat_file_monitor);
+  g_object_unref (self->mtdat_file);
+  gst_tag_list_unref (self->tags);
+  g_main_loop_quit (self->loop);
   return G_SOURCE_REMOVE;
 }
 
@@ -466,9 +618,9 @@ icestreamer_run (IceStreamer *self)
 
   self->loop = loop;
 
-  g_unix_signal_add (SIGINT, exit_handler, loop);
-  g_unix_signal_add (SIGHUP, exit_handler, loop);
-  g_unix_signal_add (SIGTERM, exit_handler, loop);
+  g_unix_signal_add (SIGINT, exit_handler, self);
+  g_unix_signal_add (SIGHUP, exit_handler, self);
+  g_unix_signal_add (SIGTERM, exit_handler, self);
 
   bus = gst_pipeline_get_bus (GST_PIPELINE (self->pipeline));
   gst_bus_add_watch (bus, bus_callback, self);
@@ -490,7 +642,7 @@ main (gint argc, gchar **argv)
   g_autoptr (IceStreamer) self = NULL;
   g_autoptr (GError) error = NULL;
 
-  gchar *conf_file = "icestreamer.conf";
+  gchar *conf_file = "/etc/icestreamer.conf";
   const GOptionEntry entries[] =
   {
     { "config", 'c', 0, G_OPTION_ARG_FILENAME, &conf_file,
@@ -509,6 +661,13 @@ main (gint argc, gchar **argv)
 
   if (!g_option_context_parse (context, &argc, &argv, &error)) {
     g_print ("option parsing failed: %s\n", error->message);
+    return 1;
+  }
+
+  /* verify provided files exist */
+  if (!g_file_test (conf_file, G_FILE_TEST_IS_REGULAR)) {
+    g_print ("no configuration file provided\n");
+    g_print ("\n%s", g_option_context_get_help (context, TRUE, NULL));
     return 1;
   }
 

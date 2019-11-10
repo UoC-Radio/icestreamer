@@ -18,6 +18,7 @@
  */
 #include <glib-unix.h>
 #include <gst/gst.h>
+#include <gio/gio.h>
 
 /* ammount of seconds to wait before attempting to reconnect a stream */
 #define RECONNECT_TIMEOUT 5
@@ -31,5 +32,8 @@ struct _IceStreamer
   GList      *streams;
   GList      *disconnected_streams;
   guint      timeout_source;
+  GFile      *mtdat_file;
+  GFileMonitor *mtdat_file_monitor;
+  GstTagList *tags;
 };
 

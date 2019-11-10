@@ -21,6 +21,18 @@ PKG_CHECK_MODULES(GStreamer,
 			AC_MSG_ERROR([Could not find GStreamer 1.0 libraries])
 		   ])
 
+PKG_CHECK_MODULES(GLib,
+		   [
+			gio-2.0
+		   ],
+		   [
+			AC_SUBST(GLib_CFLAGS)
+                        AC_SUBST(GLib_LIBS)
+		   ],
+		   [
+			AC_MSG_ERROR([Could not find GLib 2.0 libraries])
+		   ])
+
 # Output files
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
