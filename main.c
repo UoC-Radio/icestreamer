@@ -318,8 +318,8 @@ update_metadata_callback (GFileMonitor *monitor,
 
   if (event_type != G_FILE_MONITOR_EVENT_CHANGED &&
       event_type != G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT) {
-    g_print ("something weird happened to the metadata file (%u)\n", event_type);
-    g_print ("disabling metadata monitor\n");
+    g_error ("Something weird happened to the metadata file (%u),\n", event_type);
+    g_error ("disabling metadata monitor.\n");
     g_file_monitor_cancel (monitor);
     g_object_unref (monitor);
     g_object_unref (file);
@@ -328,8 +328,8 @@ update_metadata_callback (GFileMonitor *monitor,
 
   file_bytes = g_file_load_bytes (file, NULL, NULL, &error);
   if (error) {
-    g_print ("couldn't read metadata file: %s\n", error->message);
-    g_print ("disabling metadata monitor\n");
+    g_error ("Couldn't read metadata file: %s,\n", error->message);
+    g_error ("disabling metadata monitor.\n");
     g_file_monitor_cancel (monitor);
     g_object_unref (monitor);
     g_object_unref (file);
@@ -339,25 +339,25 @@ update_metadata_callback (GFileMonitor *monitor,
   file_contents = (gchar*) g_bytes_unref_to_data (file_bytes, &file_len);
 
   if (!strnlen(file_contents, file_len)) {
-    g_print ("got malformed metadata\n");
+    g_warning ("Got malformed metadata\n");
     return;
   }
 
   if (!g_utf8_validate_len (file_contents, file_len, NULL)) {
-    g_print ("got malformed metadata\n");
+    g_warning ("Got malformed metadata\n");
     return;
   }
 
   file_contents = g_strstrip (file_contents);
 
   if (!g_strrstr(file_contents, "\n")) {
-    g_print ("got malformed metadata\n");
+    g_warning ("Got malformed metadata\n");
     return;
   }
 
   metadata = g_strsplit (file_contents, "\n", 3);
   if (g_strv_length(metadata) != 2) {
-    g_print ("got malformed metadata\n");
+    g_warning ("Got malformed metadata\n");
     return;
   }
 
@@ -375,7 +375,7 @@ update_metadata_callback (GFileMonitor *monitor,
 
   tag_event = gst_event_new_tag (self->tags);
   if (!gst_element_send_event (self->pipeline, tag_event))
-    g_print ("failed to send tag event\n");
+    g_warning ("Failed to send tag event\n");
 
   return;
 }
@@ -392,13 +392,13 @@ setup_metadata_handler (IceStreamer *self, GKeyFile *keyfile, GError **error)
 
   filename = g_key_file_get_string (keyfile, "metadata", "file", &internal_error);
   if (internal_error) {
-    g_set_error (error, 0, 0, "no metadata file provided: %s\n", internal_error->message);
+    g_set_error (error, 0, 0, "No metadata file provided: %s\n", internal_error->message);
     return FALSE;
   }
 
   mtdat_file = g_file_new_for_path (filename);
   if (!g_file_query_exists (mtdat_file, NULL)) {
-    g_set_error (error, 0, 0, "provided metadata file doesn't exist\n");
+    g_set_error (error, 0, 0, "Provided metadata file doesn't exist\n");
     return FALSE;
   }
 
@@ -406,7 +406,7 @@ setup_metadata_handler (IceStreamer *self, GKeyFile *keyfile, GError **error)
   mtdat_file_monitor = g_file_monitor_file (mtdat_file, G_FILE_MONITOR_NONE,
                                             cancellable, &internal_error);
   if (internal_error) {
-    g_set_error (error, 0, 0, "could not initialize metadata file monitor: %s\n",
+    g_set_error (error, 0, 0, "Could not initialize metadata file monitor: %s\n",
                  internal_error->message);
     g_object_unref (mtdat_file);
     return FALSE;
@@ -415,7 +415,7 @@ setup_metadata_handler (IceStreamer *self, GKeyFile *keyfile, GError **error)
   ret = g_signal_connect(mtdat_file_monitor, "changed",
                          G_CALLBACK(update_metadata_callback), self);
   if (ret <= 0) {
-    g_set_error (error, 0, 0, "could not connect to metadata file monitor\n");
+    g_set_error (error, 0, 0, "Could not connect to metadata file monitor\n");
     g_file_monitor_cancel (mtdat_file_monitor);
     g_object_unref (mtdat_file_monitor);
     g_object_unref (mtdat_file);
@@ -446,13 +446,13 @@ icestreamer_load (IceStreamer *self, const gchar *conf_file)
 
   keyfile = g_key_file_new ();
   if (!g_key_file_load_from_file (keyfile, conf_file, G_KEY_FILE_NONE, &error)) {
-    g_print ("Failed to load configuration file '%s': %s\n", conf_file, error->message);
+    g_error ("Failed to load configuration file '%s': %s\n", conf_file, error->message);
     return FALSE;
   }
 
   source = construct_source (self, keyfile, &error);
   if (!source) {
-    g_print ("%s\n", error->message);
+    g_error ("%s\n", error->message);
     return FALSE;
   }
 
@@ -463,7 +463,7 @@ icestreamer_load (IceStreamer *self, const gchar *conf_file)
   gst_bin_add_many (GST_BIN (self->pipeline), source, self->tee, NULL);
 
   if (!gst_element_link (source, self->tee)) {
-    g_print ("Failed to link source with tee\n");
+    g_error ("Failed to link source with tee\n");
     return FALSE;
   }
 
@@ -486,7 +486,7 @@ icestreamer_load (IceStreamer *self, const gchar *conf_file)
     stream = construct_stream (self, keyfile, *group, &error);
 
     if (error) {
-      g_print ("Failed to construct stream: %s\n", error->message);
+      g_error ("Failed to construct stream: %s\n", error->message);
       g_clear_error (&error);
       continue;
     }
@@ -501,13 +501,13 @@ icestreamer_load (IceStreamer *self, const gchar *conf_file)
   g_strfreev (groups);
 
   if (streams_linked == 0) {
-    g_print ("No streams specified in the configuration file\n");
+    g_error ("No streams specified in the configuration file\n");
     return FALSE;
   }
 
   setup_metadata_handler (self, keyfile, &error);
   if (error)
-    g_print("%s\n", error->message);
+    g_error("%s\n", error->message);
 
   return TRUE;
 }
@@ -520,7 +520,7 @@ reconnect_timeout_callback (gpointer data)
 
   for (curr = self->disconnected_streams; curr != NULL; curr = g_list_next (curr)) {
     GstElement *stream = curr->data;
-    GST_INFO ("Reconnecting %s", GST_OBJECT_NAME (stream));
+    g_message ("Reconnecting %s", GST_OBJECT_NAME (stream));
     gst_element_set_state (stream, GST_STATE_PLAYING);
     gst_element_link_pads (self->tee, "src_%u", stream, "sink");
   }
@@ -566,7 +566,7 @@ bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
       g_autoptr (GstPad) bin_sinkpad = NULL, tee_srcpad = NULL;
 
       GST_WARNING ("Encountered a fatal network send error (%s)", debug);
-      g_print ("Network error for %s: %s\n", GST_MESSAGE_SRC_NAME(msg), error->message);
+      g_warning ("Network error for %s: %s\n", GST_MESSAGE_SRC_NAME(msg), error->message);
 
       stream_bin = GST_ELEMENT (gst_object_get_parent (GST_MESSAGE_SRC (msg)));
       bin_sinkpad = gst_element_get_static_pad (stream_bin, "sink");
@@ -585,7 +585,7 @@ bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
       /*
        * Any other error is fatal - report & exit
        */
-      g_print ("GStreamer reported a fatal error: %s (%s)\n", error->message, debug);
+      g_error ("GStreamer reported a fatal error: %s (%s)\n", error->message, debug);
       g_main_loop_quit (self->loop);
     }
 
@@ -660,13 +660,13 @@ main (gint argc, gchar **argv)
   g_option_context_add_group (context, gst_init_get_option_group ());
 
   if (!g_option_context_parse (context, &argc, &argv, &error)) {
-    g_print ("option parsing failed: %s\n", error->message);
+    g_error ("Option parsing failed: %s\n", error->message);
     return 1;
   }
 
   /* verify provided files exist */
   if (!g_file_test (conf_file, G_FILE_TEST_IS_REGULAR)) {
-    g_print ("no configuration file provided\n");
+    g_error ("No configuration file provided\n");
     g_print ("\n%s", g_option_context_get_help (context, TRUE, NULL));
     return 1;
   }
