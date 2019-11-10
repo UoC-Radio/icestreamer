@@ -1,6 +1,6 @@
 bin_PROGRAMS = icestreamer
 
-icestreamer_SOURCES = main.c
+icestreamer_SOURCES = config.c source.c stream.c metadata.c main.c
 icestreamer_LDADD = $(GStreamer_LIBS) $(GLib_LIBS)
 icestreamer_CFLAGS = ${CFLAGS} ${GStreamer_CFLAGS} $(GLib_CFLAGS)
 
