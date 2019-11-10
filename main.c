@@ -18,24 +18,13 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <glib-unix.h>
-#include <gst/gst.h>
+#include "icestreamer.h"
 
 /* ammount of seconds to wait before attempting to reconnect a stream */
 #define RECONNECT_TIMEOUT 5
 
 GST_DEBUG_CATEGORY_STATIC (icestreamer_debug);
 #define GST_CAT_DEFAULT icestreamer_debug
-
-typedef struct _IceStreamer IceStreamer;
-struct _IceStreamer
-{
-  GstElement *pipeline;
-  GstElement *tee;    /* owned by the pipeline */
-  GMainLoop  *loop;   /* weak pointer, not owned by us */
-  GList      *discncted_streams;
-  guint      timeout_source;
-};
 
 static void
 ice_streamer_free (IceStreamer *streamer)
