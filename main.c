@@ -423,6 +423,7 @@ bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
       g_autoptr (GstPad) bin_sinkpad = NULL, tee_srcpad = NULL;
 
       GST_WARNING ("Encountered a fatal network send error (%s)", debug);
+      g_print ("Network error for %s: %s\n", GST_MESSAGE_SRC_NAME(msg), error->message);
 
       stream_bin = GST_ELEMENT (gst_object_get_parent (GST_MESSAGE_SRC (msg)));
       bin_sinkpad = gst_element_get_static_pad (stream_bin, "sink");
