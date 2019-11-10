@@ -28,7 +28,8 @@ struct _IceStreamer
   GstElement *pipeline;
   GstElement *tee;    /* owned by the pipeline */
   GMainLoop  *loop;   /* weak pointer, not owned by us */
-  GList      *discncted_streams;
+  GList      *streams;
+  GList      *disconnected_streams;
   guint      timeout_source;
 };
 

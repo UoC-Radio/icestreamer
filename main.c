@@ -350,9 +350,11 @@ icestreamer_load (IceStreamer *self, const gchar *conf_file)
 
     gst_bin_add (GST_BIN (self->pipeline), stream);
     gst_element_link_pads (self->tee, "src_%u", stream, "sink");
+    self->streams = g_list_prepend (self->streams, stream);
     streams_linked++;
   }
 
+  self->streams = g_list_reverse (self->streams);
   g_strfreev (groups);
 
   if (streams_linked == 0) {
@@ -367,13 +369,18 @@ static gboolean
 reconnect_timeout_callback (gpointer data)
 {
   IceStreamer *self = data;
-  GList *l;
+  GList *curr = NULL;
 
-  for (l = self->discncted_streams; l != NULL; l = g_list_next (l)) {
-    GstElement *stream = l->data;
+  for (curr = self->disconnected_streams; curr != NULL; curr = g_list_next (curr)) {
+    GstElement *stream = curr->data;
     GST_INFO ("Reconnecting %s", GST_OBJECT_NAME (stream));
     gst_element_set_state (stream, GST_STATE_PLAYING);
     gst_element_link_pads (self->tee, "src_%u", stream, "sink");
+  }
+
+  for (curr = self->streams; curr != NULL; curr = g_list_next (curr)) {
+     GstElement *stream = curr->data;
+     self->disconnected_streams = g_list_remove(self->disconnected_streams, curr->data);
   }
 
   self->timeout_source = 0;
@@ -420,7 +427,7 @@ bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
       gst_pad_unlink (tee_srcpad, bin_sinkpad);
       gst_element_release_request_pad (self->tee, tee_srcpad);
       gst_element_set_state (stream_bin, GST_STATE_NULL);
-      self->discncted_streams = g_list_prepend (self->discncted_streams, stream_bin);
+      self->disconnected_streams = g_list_prepend (self->disconnected_streams, stream_bin);
 
       if (self->timeout_source == 0) {
         GST_INFO ("Starting reconnection timer");
