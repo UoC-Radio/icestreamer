@@ -40,23 +40,25 @@ struct _IceStreamer
 /* Prototypes */
 
 /* config.c */
-gchar *icstr_keyfile_get_string_with_fallback (GKeyFile * keyfile,
-    const gchar * group, const gchar * key, const gchar * fallback);
+gchar* icstr_keyfile_get_string_with_fallback (GKeyFile *keyfile,
+    const gchar *group, const gchar *key, const gchar *fallback);
+
 gboolean
 icstr_object_set_properties_from_keyfile (gpointer object,
-    GKeyFile * keyfile, const gchar * group, GError ** error);
-GstElement *icstr_element_factory_make_with_group_name (const gchar * factory,
-    const gchar * group);
+    GKeyFile *keyfile, const gchar *group, GError **error);
+
+GstElement* icstr_element_factory_make_with_group_name (const gchar *factory,
+    const gchar *group);
 
 /* source.c */
-GstElement *icstr_construct_source (IceStreamer * self,
-    GKeyFile * keyfile, GError ** error);
+GstElement* icstr_construct_source (IceStreamer *self,
+    GKeyFile *keyfile, GError **error);
 
 /* stream.c */
-GstElement *icstr_construct_stream (IceStreamer * self,
-    GKeyFile * keyfile, const gchar * group, GError ** error);
+GstElement* icstr_construct_stream (IceStreamer *self,
+    GKeyFile *keyfile, const gchar *group, GError **error);
 
 /* metadata.c */
 gboolean
-icstr_setup_metadata_handler (IceStreamer * self, GKeyFile * keyfile,
-    GError ** error);
+icstr_setup_metadata_handler (IceStreamer *self, GKeyFile *keyfile,
+    GError **error);

@@ -19,8 +19,8 @@
 #include "icestreamer.h"
 
 GstElement *
-icstr_construct_stream (IceStreamer * self,
-    GKeyFile * keyfile, const gchar * group, GError ** error)
+icstr_construct_stream (IceStreamer *self,
+    GKeyFile *keyfile, const gchar *group, GError **error)
 {
   g_autoptr (GstElement) bin = NULL;
   g_autoptr (GstElement) queue = NULL;
@@ -30,16 +30,17 @@ icstr_construct_stream (IceStreamer * self,
   g_autoptr (GstElement) mux = NULL;
   g_autoptr (GstElement) shout2send = NULL;
   g_autoptr (GError) internal_error = NULL;
+  g_autoptr (GstPad) target = NULL;
   g_autofree gchar *value = NULL;
   const gchar *encoder_factory = NULL;
   const gchar *mux_factory = NULL;
   GstTagSetter *tagsetter = NULL;
   gboolean mux_required = TRUE;
+  gboolean link_res = FALSE;
 
   /* find out which encoder & mux to construct */
-  value =
-      icstr_keyfile_get_string_with_fallback (keyfile, group, "encoder",
-      "vorbis");
+  value = icstr_keyfile_get_string_with_fallback (keyfile, group, "encoder",
+                                                  "vorbis");
   if (g_str_equal (value, "vorbis")) {
     encoder_factory = "vorbisenc";
   } else if (g_str_equal (value, "opus")) {
@@ -49,48 +50,60 @@ icstr_construct_stream (IceStreamer * self,
     mux_required = FALSE;
   }
 
+  if (!encoder_factory) {
+    g_set_error (error, 0, 0,
+                 "Unknown encoder: %s\n",
+                 value);
+    return NULL;
+  }
+
   if (mux_required) {
     g_free (value);
-    value =
-        icstr_keyfile_get_string_with_fallback (keyfile, group, "container",
-        "ogg");
+    value = icstr_keyfile_get_string_with_fallback (keyfile, group, "container",
+                                                    "ogg");
     if (g_str_equal (value, "ogg")) {
       mux_factory = "oggmux";
     } else if (g_str_equal (value, "webm")) {
       mux_factory = "webmmux";
     }
+
+    if (!mux_factory) {
+      g_set_error (error, 0, 0,
+          "Unknown container: %s\n", value);
+      return NULL;
+    }
+
   }
 
   GST_DEBUG ("Attempting to construct encoder element %s for stream %s",
-      encoder_factory, group);
+             encoder_factory, group);
 
   /* construct encoder */
-  if (!encoder_factory ||
-      !(encoder =
-          icstr_element_factory_make_with_group_name (encoder_factory,
-              group))) {
+  encoder = icstr_element_factory_make_with_group_name (encoder_factory,
+                                                        group);
+  if (!encoder) {
     g_set_error (error, 0, 0,
-        "Failed to construct encoder element (%s) for stream '%s'\n",
-        encoder_factory, group);
+                 "Failed to construct encoder element (%s) for stream '%s'\n",
+                 encoder_factory, group);
     return NULL;
   }
 
   /* set encoder properties */
   if (!icstr_object_set_properties_from_keyfile (encoder, keyfile, group,
-          &internal_error)) {
+                                                 &internal_error)) {
     g_propagate_prefixed_error (error, g_steal_pointer (&internal_error),
         "Failed to read shout2send properties for stream '%s':", group);
     return NULL;
   }
 
   if (mux_required) {
+
     GST_DEBUG ("Attempting to construct mux element %s for stream %s",
-        mux_factory, group);
+               mux_factory, group);
 
     /* construct mux */
-    if (!mux_factory ||
-        !(mux =
-            icstr_element_factory_make_with_group_name (mux_factory, group))) {
+    mux = icstr_element_factory_make_with_group_name (mux_factory, group);
+    if (!mux) {
       g_set_error (error, 0, 0,
           "Failed to construct mux element (%s) for stream '%s'\n", mux_factory,
           group);
@@ -102,8 +115,8 @@ icstr_construct_stream (IceStreamer * self,
     g_object_set (mux, "streamable", TRUE, NULL);
 
   /* construct shout2send */
-  if (!(shout2send =
-          icstr_element_factory_make_with_group_name ("shout2send", group))) {
+  shout2send = icstr_element_factory_make_with_group_name ("shout2send", group);
+  if (!shout2send) {
     g_set_error (error, 0, 0,
         "Failed to construct shout2send element "
         "- verify your GStreamer installation\n");
@@ -113,7 +126,7 @@ icstr_construct_stream (IceStreamer * self,
 
   /* set its properties */
   if (!icstr_object_set_properties_from_keyfile (shout2send, keyfile, group,
-          &internal_error)) {
+                                                 &internal_error)) {
     g_propagate_prefixed_error (error, g_steal_pointer (&internal_error),
         "Failed to read shout2send properties for stream '%s':", group);
     return NULL;
@@ -123,8 +136,7 @@ icstr_construct_stream (IceStreamer * self,
   bin = icstr_element_factory_make_with_group_name ("bin", group);
   queue = icstr_element_factory_make_with_group_name ("queue", group);
   convert = icstr_element_factory_make_with_group_name ("audioconvert", group);
-  resample =
-      icstr_element_factory_make_with_group_name ("audioresample", group);
+  resample = icstr_element_factory_make_with_group_name ("audioresample", group);
 
   /* allow the bin to go to PLAYING independently of the pipeline or other bins */
   g_object_set (bin, "async-handling", TRUE, NULL);
@@ -133,33 +145,24 @@ icstr_construct_stream (IceStreamer * self,
   g_object_set (queue, "leaky", 2, NULL);
 
   gst_bin_add_many (GST_BIN (bin), queue, convert, resample, encoder,
-      shout2send, NULL);
+                    shout2send, NULL);
   if (mux)
     gst_bin_add (GST_BIN (bin), mux);
 
-  {
-    gboolean link_res;
-
-    if (mux)
-      link_res =
-          gst_element_link_many (queue, convert, resample, encoder, mux,
-          shout2send, NULL);
-    else
-      link_res =
-          gst_element_link_many (queue, convert, resample, encoder, shout2send,
-          NULL);
-
-    if (!link_res) {
-      g_set_error (error, 0, 0, "Failed to link pipeline for stream '%s'\n",
-          group);
-      return NULL;
-    }
+  if (mux)
+    link_res = gst_element_link_many (queue, convert, resample, encoder, mux,
+                                      shout2send, NULL);
+  else
+    link_res = gst_element_link_many (queue, convert, resample, encoder,
+                                      shout2send, NULL);
+  if (!link_res) {
+    g_set_error (error, 0, 0, "Failed to link pipeline for stream '%s'\n",
+                 group);
+    return NULL;
   }
 
-  {
-    g_autoptr (GstPad) target = gst_element_get_static_pad (queue, "sink");
-    gst_element_add_pad (bin, gst_ghost_pad_new ("sink", target));
-  }
+  target = gst_element_get_static_pad (queue, "sink");
+  gst_element_add_pad (bin, gst_ghost_pad_new ("sink", target));
 
   tagsetter = GST_TAG_SETTER (shout2send);
 

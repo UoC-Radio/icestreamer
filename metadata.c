@@ -20,9 +20,8 @@
 #include "icestreamer.h"
 
 static void
-icstr_update_metadata_callback (GFileMonitor * monitor,
-    GFile * file,
-    GFile * other_file, GFileMonitorEvent event_type, gpointer data)
+icstr_update_metadata_callback (GFileMonitor *monitor,
+    GFile *file, GFile *other_file, GFileMonitorEvent event_type, gpointer data)
 {
   IceStreamer *self = data;
   GBytes *file_bytes = NULL;
@@ -38,7 +37,7 @@ icstr_update_metadata_callback (GFileMonitor * monitor,
   if (event_type != G_FILE_MONITOR_EVENT_CHANGED &&
       event_type != G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT) {
     g_error ("Something weird happened to the metadata file (%u),\n",
-        event_type);
+             event_type);
     g_error ("disabling metadata monitor.\n");
     g_file_monitor_cancel (monitor);
     g_object_unref (monitor);
@@ -90,9 +89,9 @@ icstr_update_metadata_callback (GFileMonitor * monitor,
     self->tags = gst_tag_list_new_empty ();
 
   gst_tag_list_add (self->tags, GST_TAG_MERGE_REPLACE, GST_TAG_ARTIST, artist,
-      NULL);
+                    NULL);
   gst_tag_list_add (self->tags, GST_TAG_MERGE_REPLACE, GST_TAG_TITLE, title,
-      NULL);
+                    NULL);
   gst_tag_list_set_scope (self->tags, GST_TAG_SCOPE_GLOBAL);
 
   tag_event = gst_event_new_tag (self->tags);
@@ -117,7 +116,7 @@ icstr_setup_metadata_handler (IceStreamer * self, GKeyFile * keyfile,
       g_key_file_get_string (keyfile, "metadata", "file", &internal_error);
   if (internal_error) {
     g_set_error (error, 0, 0, "No metadata file provided: %s\n",
-        internal_error->message);
+                 internal_error->message);
     return FALSE;
   }
 
@@ -129,7 +128,7 @@ icstr_setup_metadata_handler (IceStreamer * self, GKeyFile * keyfile,
 
   cancellable = g_cancellable_new ();
   mtdat_file_monitor = g_file_monitor_file (mtdat_file, G_FILE_MONITOR_NONE,
-      cancellable, &internal_error);
+                                            cancellable, &internal_error);
   if (internal_error) {
     g_set_error (error, 0, 0,
         "Could not initialize metadata file monitor: %s\n",
@@ -139,7 +138,7 @@ icstr_setup_metadata_handler (IceStreamer * self, GKeyFile * keyfile,
   }
 
   ret = g_signal_connect (mtdat_file_monitor, "changed",
-      G_CALLBACK (icstr_update_metadata_callback), self);
+                          G_CALLBACK (icstr_update_metadata_callback), self);
   if (ret <= 0) {
     g_set_error (error, 0, 0, "Could not connect to metadata file monitor\n");
     g_file_monitor_cancel (mtdat_file_monitor);
@@ -153,7 +152,7 @@ icstr_setup_metadata_handler (IceStreamer * self, GKeyFile * keyfile,
 
   /* force an update */
   icstr_update_metadata_callback (mtdat_file_monitor, mtdat_file,
-      NULL, G_FILE_MONITOR_EVENT_CHANGED, self);
+                                  NULL, G_FILE_MONITOR_EVENT_CHANGED, self);
 
   return TRUE;
 }

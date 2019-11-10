@@ -32,7 +32,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC (IceStreamer, ice_streamer_free);
 
 
 static gboolean
-icstr_load (IceStreamer * self, const gchar * conf_file)
+icstr_load (IceStreamer *self, const gchar *conf_file)
 {
   g_autoptr (GKeyFile) keyfile = NULL;
   g_autoptr (GstElement) source = NULL;
@@ -46,7 +46,7 @@ icstr_load (IceStreamer * self, const gchar * conf_file)
   keyfile = g_key_file_new ();
   if (!g_key_file_load_from_file (keyfile, conf_file, G_KEY_FILE_NONE, &error)) {
     g_error ("Failed to load configuration file '%s': %s\n", conf_file,
-        error->message);
+             error->message);
     return FALSE;
   }
 
@@ -137,7 +137,7 @@ icstr_reconnect_timeout_callback (gpointer data)
 }
 
 static gboolean
-icstr_bus_callback (GstBus * bus, GstMessage * msg, gpointer data)
+icstr_bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
 {
   IceStreamer *self = data;
 
@@ -169,10 +169,9 @@ icstr_bus_callback (GstBus * bus, GstMessage * msg, gpointer data)
 
         GST_WARNING ("Encountered a fatal network send error (%s)", debug);
         g_warning ("Network error for %s: %s\n", GST_MESSAGE_SRC_NAME (msg),
-            error->message);
+                   error->message);
 
-        stream_bin =
-            GST_ELEMENT (gst_object_get_parent (GST_MESSAGE_SRC (msg)));
+        stream_bin = GST_ELEMENT (gst_object_get_parent (GST_MESSAGE_SRC (msg)));
         bin_sinkpad = gst_element_get_static_pad (stream_bin, "sink");
         tee_srcpad = gst_pad_get_peer (bin_sinkpad);
         gst_pad_unlink (tee_srcpad, bin_sinkpad);
@@ -184,14 +183,14 @@ icstr_bus_callback (GstBus * bus, GstMessage * msg, gpointer data)
         if (self->timeout_source == 0) {
           GST_INFO ("Starting reconnection timer");
           self->timeout_source = g_timeout_add_seconds (RECONNECT_TIMEOUT,
-              icstr_reconnect_timeout_callback, self);
+                                 icstr_reconnect_timeout_callback, self);
         }
       } else {
         /*
          * Any other error is fatal - report & exit
          */
         g_error ("GStreamer reported a fatal error: %s (%s)\n", error->message,
-            debug);
+                 debug);
         g_main_loop_quit (self->loop);
       }
 
@@ -217,7 +216,7 @@ icstr_exit_handler (gpointer data)
 }
 
 static void
-icstr_run (IceStreamer * self)
+icstr_run (IceStreamer *self)
 {
   g_autoptr (GMainLoop) loop = g_main_loop_new (NULL, FALSE);
   g_autoptr (GstBus) bus = NULL;
@@ -242,7 +241,7 @@ icstr_run (IceStreamer * self)
 }
 
 gint
-main (gint argc, gchar ** argv)
+main (gint argc, gchar **argv)
 {
   g_autoptr (GOptionContext) context;
   g_autoptr (IceStreamer) self = NULL;
@@ -251,7 +250,7 @@ main (gint argc, gchar ** argv)
   gchar *conf_file = "/etc/icestreamer.conf";
   const GOptionEntry entries[] = {
     {"config", 'c', 0, G_OPTION_ARG_FILENAME, &conf_file,
-        "Configuration file", "icestreamer.conf"},
+     "Configuration file", "icestreamer.conf"},
     {NULL}
   };
 

@@ -19,7 +19,7 @@
 #include "icestreamer.h"
 
 GstElement *
-icstr_construct_source (IceStreamer * self, GKeyFile * keyfile, GError ** error)
+icstr_construct_source (IceStreamer *self, GKeyFile *keyfile, GError **error)
 {
   g_autoptr (GstElement) element = NULL;
   g_autofree gchar *value = NULL;
@@ -27,9 +27,8 @@ icstr_construct_source (IceStreamer * self, GKeyFile * keyfile, GError ** error)
   g_autoptr (GError) internal_error = NULL;
 
   /* find out which element to construct and construct it */
-  value =
-      icstr_keyfile_get_string_with_fallback (keyfile, "input", "source",
-      "auto");
+  value = icstr_keyfile_get_string_with_fallback (keyfile, "input", "source",
+                                                  "auto");
   if (g_str_equal (value, "auto"))
     element_factory = "autoaudiosrc";
   else if (g_str_equal (value, "jack"))
@@ -41,14 +40,19 @@ icstr_construct_source (IceStreamer * self, GKeyFile * keyfile, GError ** error)
   else if (g_str_equal (value, "test"))
     element_factory = "audiotestsrc";
 
-  GST_DEBUG ("Attempting to construct source element %s for input source %s",
-      element_factory, value);
+  if (!element_factory) {
+    g_set_error (error, 0, 0, "Unknown source: %s\n", value);
+    return NULL;
+  }
 
-  if (!element_factory
-      || !(element = gst_element_factory_make (element_factory, NULL))) {
+  GST_DEBUG ("Attempting to construct source element %s for input source %s",
+             element_factory, value);
+
+  element = gst_element_factory_make (element_factory, NULL);
+  if (!element) {
     g_set_error (error, 0, 0,
-        "Failed to construct source element (source = %s, factory = %s)\n",
-        value, element_factory);
+                 "Failed to construct source element (source = %s, factory = %s)\n",
+                 value, element_factory);
     return NULL;
   }
 
@@ -57,11 +61,11 @@ icstr_construct_source (IceStreamer * self, GKeyFile * keyfile, GError ** error)
 
   /* set its properties */
   if (!icstr_object_set_properties_from_keyfile (element, keyfile, "input",
-          &internal_error)) {
+                                                 &internal_error)) {
     /* group not found is ok - for anything else, bail out */
     if (internal_error->code != G_KEY_FILE_ERROR_GROUP_NOT_FOUND) {
       g_propagate_prefixed_error (error, g_steal_pointer (&internal_error),
-          "Failed to read input properties:");
+                                  "Failed to read input properties:");
       return NULL;
     }
   }
@@ -71,8 +75,8 @@ icstr_construct_source (IceStreamer * self, GKeyFile * keyfile, GError ** error)
     g_object_set (element, "is-live", TRUE, NULL);
 
   /* make sure it works */
-  if (gst_element_set_state (element,
-          GST_STATE_READY) != GST_STATE_CHANGE_SUCCESS) {
+  if (gst_element_set_state (element, GST_STATE_READY)
+      != GST_STATE_CHANGE_SUCCESS) {
     g_set_error (error, 0, 0, "Failed to activate input element");
     return NULL;
   }

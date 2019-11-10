@@ -19,8 +19,8 @@
 #include "icestreamer.h"
 
 gchar *
-icstr_keyfile_get_string_with_fallback (GKeyFile * keyfile,
-    const gchar * group, const gchar * key, const gchar * fallback)
+icstr_keyfile_get_string_with_fallback (GKeyFile *keyfile,
+    const gchar *group, const gchar *key, const gchar *fallback)
 {
   GError *error = NULL;
   gchar *value = NULL;
@@ -36,7 +36,7 @@ icstr_keyfile_get_string_with_fallback (GKeyFile * keyfile,
 
 gboolean
 icstr_object_set_properties_from_keyfile (gpointer object,
-    GKeyFile * keyfile, const gchar * group, GError ** error)
+    GKeyFile *keyfile, const gchar *group, GError **error)
 {
   GObjectClass *klass = G_OBJECT_GET_CLASS (object);
   g_autofree GParamSpec **params;
@@ -65,18 +65,18 @@ icstr_object_set_properties_from_keyfile (gpointer object,
     }
 
     GST_LOG ("Setting property %s on object %s to the value '%s'",
-        g_param_spec_get_name (param), GST_OBJECT_NAME (object), value);
+             g_param_spec_get_name (param), GST_OBJECT_NAME (object), value);
 
     gst_util_set_object_arg (G_OBJECT (object), g_param_spec_get_name (param),
-        value);
+                             value);
   }
 
   return TRUE;
 }
 
 GstElement *
-icstr_element_factory_make_with_group_name (const gchar * factory,
-    const gchar * group)
+icstr_element_factory_make_with_group_name (const gchar *factory,
+    const gchar *group)
 {
   g_autofree gchar *name;
   GstElement *element;
