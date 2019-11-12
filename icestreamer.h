@@ -19,14 +19,37 @@
 #include <glib-unix.h>
 #include <gst/gst.h>
 #include <gio/gio.h>
+#include "config.h"
 
 /* ammount of seconds to wait before attempting to reconnect a stream */
 #define RECONNECT_TIMEOUT 5
+
+#ifndef DISABLE_GUI
+#include <gtk/gtk.h>
+struct icsr_gui {
+  GtkWidget* window;
+  GtkWidget* container;
+  GtkWidget* top_hbox;
+  GtkWidget* top_vbox;
+  GtkWidget* source_frame;
+  GtkWidget* source_box;
+  GtkWidget* levels_box;
+  GtkWidget* time_label;
+  GtkWidget* level_l;
+  GtkWidget* level_r;
+  GtkWidget* streams_frame;
+  GtkWidget* streams_box;
+};
+#endif
 
 typedef struct _IceStreamer IceStreamer;
 struct _IceStreamer
 {
   GstElement *pipeline;
+#ifndef DISABLE_GUI
+  GstElement *audioconvert;
+  GstElement *level;
+#endif
   GstElement *tee;              /* owned by the pipeline */
   GMainLoop *loop;              /* weak pointer, not owned by us */
   GList *streams;
@@ -34,7 +57,11 @@ struct _IceStreamer
   guint timeout_source;
   GFile *mtdat_file;
   GFileMonitor *mtdat_file_monitor;
-  GstTagList *tags;
+  GstTagList   *tags;
+  GThread      *gui_thread;
+#ifndef DISABLE_GUI
+  struct icsr_gui gui;
+#endif
 };
 
 /* Prototypes */
@@ -62,3 +89,13 @@ GstElement* icstr_construct_stream (IceStreamer *self,
 gboolean
 icstr_setup_metadata_handler (IceStreamer *self, GKeyFile *keyfile,
     GError **error);
+
+#ifndef DISABLE_GUI
+/* gui.c */
+gboolean
+icstr_init_gui(IceStreamer *self, guint *argc, gchar ***argv);
+void
+icstr_gui_update_levels(IceStreamer *self, double rms_l, double rms_r);
+void
+icstr_gui_update_time_label(IceStreamer *self, GstClockTime tstamp);
+#endif

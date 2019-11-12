@@ -32,11 +32,12 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC (IceStreamer, ice_streamer_free);
 
 
 static gboolean
-icstr_load (IceStreamer *self, const gchar *conf_file)
+icstr_load (IceStreamer *self, const gchar *conf_file, gboolean show_gui)
 {
   g_autoptr (GKeyFile) keyfile = NULL;
   g_autoptr (GstElement) source = NULL;
   g_autoptr (GError) error = NULL;
+  g_autoptr (GstCaps) caps = NULL;
   gchar **groups;
   gchar **group;
   guint streams_linked = 0;
@@ -66,6 +67,28 @@ icstr_load (IceStreamer *self, const gchar *conf_file)
     g_error ("Failed to link source with tee\n");
     return FALSE;
   }
+
+#ifndef DISABLE_GUI
+  if (show_gui) {
+    self->level = gst_element_factory_make ("level", NULL);
+    g_object_set (G_OBJECT (self->level), "post-messages", TRUE, NULL);
+    g_object_set (G_OBJECT (self->level), "interval", 85000000, NULL);
+    self->audioconvert = gst_element_factory_make ("audioconvert", NULL);
+
+    gst_bin_add_many (GST_BIN (self->pipeline), self->audioconvert, self->level, NULL);
+
+    if (!gst_element_link (self->tee, self->audioconvert)) {
+      g_error ("Failed to link tee with audioconvert\n");
+      return FALSE;
+    }
+
+    caps = gst_caps_from_string ("audio/x-raw,channels=2");
+    if (!gst_element_link_filtered (self->audioconvert, self->level, caps)) {
+      g_error ("Failed to link source with level\n");
+      return FALSE;
+    }
+  }
+#endif
 
   /* parse all remaining groups as streams */
 
@@ -137,6 +160,18 @@ icstr_reconnect_timeout_callback (gpointer data)
 }
 
 static gboolean
+icstr_exit_handler (gpointer data)
+{
+  IceStreamer *self = data;
+  g_file_monitor_cancel (self->mtdat_file_monitor);
+  g_object_unref (self->mtdat_file_monitor);
+  g_object_unref (self->mtdat_file);
+  gst_tag_list_unref (self->tags);
+  g_main_loop_quit (self->loop);
+  return G_SOURCE_REMOVE;
+}
+
+static gboolean
 icstr_bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
 {
   IceStreamer *self = data;
@@ -191,28 +226,55 @@ icstr_bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
          */
         g_error ("GStreamer reported a fatal error: %s (%s)\n", error->message,
                  debug);
-        g_main_loop_quit (self->loop);
+        icstr_exit_handler (self);
       }
 
       break;
     }
+#ifndef DISABLE_GUI
+    case GST_MESSAGE_ELEMENT:
+    {
+      GstClockTime running_time;
+      gdouble rms_l = 0;
+      gdouble rms_r = 0;
+      const GValue *array_val = NULL;
+      const GValue *value = NULL;
+      GValueArray *rms_arr = NULL;
+      const GstStructure *s = gst_message_get_structure (msg);
+      const gchar *name = gst_structure_get_name (s);
+
+      if (strcmp (name, "level") != 0)
+        break;
+
+      if (!gst_structure_get_clock_time (s, "running-time", &running_time))
+        g_warning ("Could not parse running-time");
+
+      icstr_gui_update_time_label(self, running_time);
+
+      /* the values are packed into GValueArrays with the value per channel */
+      array_val = gst_structure_get_value (s, "rms");
+      rms_arr = (GValueArray *) g_value_get_boxed (array_val);
+
+      /* we can get the number of channels as the length of any of the value
+       * arrays */
+      if (rms_arr->n_values != 2) {
+        g_warning ("Got wrong number of channels while updating levels on gui\n");
+        break;
+      }
+
+      rms_l = g_value_get_double(rms_arr->values + 0);
+      rms_r = g_value_get_double(rms_arr->values + 1);
+
+      icstr_gui_update_levels(self, rms_l, rms_r);
+
+      break;
+    }
+#endif
     default:
       break;
   }
 
   return G_SOURCE_CONTINUE;
-}
-
-static gboolean
-icstr_exit_handler (gpointer data)
-{
-  IceStreamer *self = data;
-  g_file_monitor_cancel (self->mtdat_file_monitor);
-  g_object_unref (self->mtdat_file_monitor);
-  g_object_unref (self->mtdat_file);
-  gst_tag_list_unref (self->tags);
-  g_main_loop_quit (self->loop);
-  return G_SOURCE_REMOVE;
 }
 
 static void
@@ -246,11 +308,16 @@ main (gint argc, gchar **argv)
   g_autoptr (GOptionContext) context;
   g_autoptr (IceStreamer) self = NULL;
   g_autoptr (GError) error = NULL;
+  gboolean show_gui = FALSE;
 
   gchar *conf_file = "/etc/icestreamer.conf";
   const GOptionEntry entries[] = {
     {"config", 'c', 0, G_OPTION_ARG_FILENAME, &conf_file,
      "Configuration file", "icestreamer.conf"},
+#ifndef DISABLE_GUI
+    {"gui", 'g', 0, G_OPTION_ARG_NONE, &show_gui,
+     "Show gui", NULL},
+#endif
     {NULL}
   };
 
@@ -279,8 +346,14 @@ main (gint argc, gchar **argv)
 
   /* initialization */
   self = g_new0 (IceStreamer, 1);
-  if (!icstr_load (self, conf_file))
+  if (!icstr_load (self, conf_file, show_gui))
     return 1;
+
+#ifndef DISABLE_GUI
+  if (show_gui)
+    /* Initialize gtk and start gui thread */
+    icstr_init_gui(self, &argc, &argv);
+#endif
 
   /* enter main loop */
   icstr_run (self);
