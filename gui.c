@@ -73,6 +73,7 @@ icstr_gui_open_infobox(GtkToggleButton *togglebutton, gpointer data)
                           infobox);
 
 	g_object_get (G_OBJECT(shout2send), "streamname", &stream_name,
+					"description", &description,
 					"genre", &genre,
 					"public", &public,
 					"url", &url,
@@ -102,10 +103,12 @@ icstr_gui_open_infobox(GtkToggleButton *togglebutton, gpointer data)
 
 	geninfo_label = gtk_label_new (NULL);
 	geninfo_markup = g_markup_printf_escaped ("<b>Stream name:</b>\t\t%s\n"
+				"<b>Description:</b>\t\t%s\n"
 				"<b>Genre:</b>\t\t\t\t%s\n"
 				"<b>Public:</b>\t\t\t\t%s\n"
 				"<b>URL:</b>\t\t\t\t%s\n",
 				stream_name,
+				description,
 				genre,
 				(public) ? "Yes" : "No",
 				url);
