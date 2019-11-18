@@ -40,6 +40,11 @@ struct icsr_gui {
   GtkWidget* streams_frame;
   GtkWidget* streams_box;
   guint      status;
+  guint      stream_counter;
+  guint      max_width;
+  guint      max_height;
+  guint      base_height;
+  guint      height_inc;
 };
 
 enum gui_status {

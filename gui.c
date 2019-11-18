@@ -218,10 +218,22 @@ icstr_gui_update_stream_status(gpointer data)
 }
 
 static void
+icstr_gui_realize_streambox(GtkWidget *stream_box, gpointer data)
+{
+	struct icsr_gui *gui = data;
+	GtkRequisition size_req = {0};
+	gtk_widget_get_preferred_size (stream_box, &size_req, NULL);
+	if (gui->max_width < size_req.width)
+		gui->max_width = size_req.width;
+	if (!gui->height_inc)
+		gui->height_inc = size_req.height + 24;
+	gui->max_height += size_req.height + 24;
+}
+
+static void
 icstr_gui_add_stream(IceStreamer *self, GstElement *stream_bin)
 {
 	struct icsr_gui *gui = &self->gui;
-	static guint counter = 0;
 	GtkWidget* separator = NULL;
 	GtkWidget* stream_box = NULL;
 	GtkWidget* status_widget = NULL;
@@ -239,11 +251,11 @@ icstr_gui_add_stream(IceStreamer *self, GstElement *stream_bin)
 	if (!stream_box)
 		goto fail;
 
-	if (counter) {
+	if (gui->stream_counter) {
 		separator = gtk_separator_new (GTK_ORIENTATION_VERTICAL);
 		if (!separator)
 			goto fail;
-		gtk_box_pack_start (GTK_BOX(gui->streams_box), separator, TRUE, FALSE, 3);
+		gtk_box_pack_start (GTK_BOX(gui->streams_box), separator, TRUE, FALSE, 5);
 	}
 
 	/* Spinner is displayed unless the stream is active */
@@ -265,7 +277,7 @@ icstr_gui_add_stream(IceStreamer *self, GstElement *stream_bin)
 	if (!stream_name_str)
 		goto fail;
 
-	/* Label to be replaced by the stream's name */
+	/* Label to be hold the stream's name */
 	stream_label = gtk_label_new(stream_name_str);
 	if (!stream_label)
 		goto fail;
@@ -291,12 +303,13 @@ icstr_gui_add_stream(IceStreamer *self, GstElement *stream_bin)
 	wmap->stream_box = stream_box;
 	wmap->shout2send = shout2send;
 	g_signal_connect(stream_box, "delete-event", G_CALLBACK(g_free), wmap);
+	g_signal_connect(stream_box, "realize", G_CALLBACK(icstr_gui_realize_streambox), gui);
 	gtk_box_pack_start (GTK_BOX(gui->streams_box), stream_box, TRUE, FALSE, 3);
 
 	g_timeout_add (1000, icstr_gui_update_stream_status, wmap);
 
 	wmap->gui_status = &gui->status;
-	counter++;
+	gui->stream_counter++;
 
 	return;
  fail:
@@ -354,6 +367,45 @@ icstr_gui_update_levels(IceStreamer *self, double rms_l, double rms_r)
 	return gui->status;
 }
 
+static void
+icstr_gui_realize_sourcestats(GtkWidget *source_frame, gpointer data)
+{
+	struct icsr_gui *gui = data;
+	GtkRequisition size_req = {0};
+	gtk_widget_get_preferred_size (source_frame, &size_req, NULL);
+	gui->base_height = 2 * size_req.height;
+}
+
+static void
+icstr_main_window_set_geometry(GtkWindow *window, GtkStateFlags flags, gpointer data)
+{
+	struct icsr_gui *gui = data;
+	GdkGeometry hints = {0};
+	static int done = 0;
+
+	if(done)
+		return;
+
+	/* Create window geometry */
+	gui->max_width += 42;
+	hints.min_width = gui->max_width;
+	hints.max_width = gui->max_width;
+	hints.base_width = -1;
+	hints.min_height = gui->base_height;
+	hints.base_height = gui->base_height;
+	hints.height_inc = gui->height_inc;
+	gui->max_height += gui->base_height;
+	hints.max_height = gui->max_height;
+
+	gtk_window_set_geometry_hints(GTK_WINDOW(window), NULL, &hints,
+			(GdkWindowHints)(GDK_HINT_MIN_SIZE | GDK_HINT_MAX_SIZE |
+					 GDK_HINT_BASE_SIZE | GDK_HINT_RESIZE_INC));
+
+	gtk_window_resize(GTK_WINDOW(window), hints.max_width, hints.max_height);
+
+	done = 1;
+}
+
 gpointer
 _icstr_init_gui(gpointer data)
 {
@@ -365,7 +417,6 @@ _icstr_init_gui(gpointer data)
 	if (!gui->window)
 		goto cleanup;
 	gtk_window_set_title(GTK_WINDOW(gui->window), "Icestreamer");
-	gtk_widget_set_size_request (gui->window, 280, 280);
 	/* Add event handler for closing the window */
 	g_signal_connect(gui->window, "destroy", G_CALLBACK(_icstr_gui_destroy),
 			 self);
@@ -391,6 +442,8 @@ _icstr_init_gui(gpointer data)
 	if(!gui->source_frame)
 		goto cleanup;
 	gtk_box_pack_start (GTK_BOX(gui->top_vbox), gui->source_frame, TRUE, FALSE, 3);
+	g_signal_connect(gui->source_frame, "realize",
+			G_CALLBACK(icstr_gui_realize_sourcestats), gui);
 
 	gui->source_box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 3);
 	if(!gui->source_box)
@@ -400,7 +453,7 @@ _icstr_init_gui(gpointer data)
 	gui->time_label = gtk_label_new("Pending...");
 	if(!gui->time_label)
 		goto cleanup;
-	gtk_box_pack_start (GTK_BOX(gui->source_box), gui->time_label, TRUE, FALSE, 6);
+	gtk_box_pack_start (GTK_BOX(gui->source_box), gui->time_label, TRUE, FALSE, 3);
 
 	gui->levels_box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 3);
 	if(!gui->levels_box)
@@ -429,6 +482,13 @@ _icstr_init_gui(gpointer data)
 	gtk_container_add(GTK_CONTAINER(gui->streams_frame), gui->streams_box);
 
 	icstr_gui_add_streams(self);
+
+	/* Add signal handler for setting window geometry after all inner
+	 * widgets have been realized. I used state-flags-changed because
+	 * it does the trick and doesn't get triggered all the time. We want
+	 * to do this once. */
+	g_signal_connect(gui->window, "state-flags-changed",
+			 G_CALLBACK(icstr_main_window_set_geometry), gui);
 
 	gtk_widget_show_all(gui->window);
 
