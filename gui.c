@@ -19,6 +19,17 @@
 #include "icestreamer.h"
 #include "math.h"
 
+const char css_style[] = ".time_label {"\
+				"background: #669999;"\
+				"min-height: 50px;"\
+				"color: black;"\
+				"font-weight: bold;"\
+				"font-family: monospace;"\
+				"text-shadow: 1px 1px 5px black;"\
+				"box-shadow: inset 0px 0px 5px black;"\
+				"border: 1px solid black;"\
+			"}";
+
 struct status_widget_map {
 	GtkWidget *stream_box;
 	GstElement *shout2send;
@@ -115,11 +126,11 @@ icstr_gui_open_infobox(GtkToggleButton *togglebutton, gpointer data)
 	gtk_box_pack_start (GTK_BOX(vbox), geninfo_frame, TRUE, FALSE, 3);
 
 	geninfo_label = gtk_label_new (NULL);
-	geninfo_markup = g_markup_printf_escaped ("<b>Stream name:</b>\t\t%s\n"
-				"<b>Description:</b>\t\t%s\n"
-				"<b>Genre:</b>\t\t\t\t%s\n"
-				"<b>Public:</b>\t\t\t\t%s\n"
-				"<b>URL:</b>\t\t\t\t%s\n",
+	geninfo_markup = g_markup_printf_escaped ("\n\t<b>Stream name:</b>\t\t%s\t\n"
+				"\t<b>Description:</b>\t\t%s\t\n"
+				"\t<b>Genre:</b>\t\t\t\t%s\t\n"
+				"\t<b>Public:</b>\t\t\t\t%s\t\n"
+				"\t<b>URL:</b>\t\t\t\t%s\t\n\n",
 				stream_name,
 				description,
 				genre,
@@ -136,11 +147,11 @@ icstr_gui_open_infobox(GtkToggleButton *togglebutton, gpointer data)
 	gtk_box_pack_start (GTK_BOX(vbox), config_frame, TRUE, FALSE, 3);
 
 	config_label = gtk_label_new (NULL);
-	config_markup = g_markup_printf_escaped ("<b>Username</b>:\t:%s\n"
-						  "<b>IP:</b>\t\t\t\t%s\n"
-						  "<b>Port:</b>\t\t\t%u\n"
-						  "<b>Protocol:</b>\t\t%s\n"
-						  "<b>Mountpoint:</b>\t%s\n",
+	config_markup = g_markup_printf_escaped ("\n\t<b>Username</b>:\t:%s\t\n"
+						  "\t<b>IP:</b>\t\t\t\t%s\t\n"
+						  "\t<b>Port:</b>\t\t\t%u\t\n"
+						  "\t<b>Protocol:</b>\t\t%s\t\n"
+						  "\t<b>Mountpoint:</b>\t%s\t\n\n",
 						  username,
 						  ip,
 						  port,
@@ -373,7 +384,9 @@ icstr_gui_realize_sourcestats(GtkWidget *source_frame, gpointer data)
 	struct icsr_gui *gui = data;
 	GtkRequisition size_req = {0};
 	gtk_widget_get_preferred_size (source_frame, &size_req, NULL);
-	gui->base_height = 2 * size_req.height;
+	if (gui->max_width < size_req.width)
+		gui->max_width = size_req.width + (size_req.width >> 1);
+	gui->base_height = size_req.height + 71;
 }
 
 static void
@@ -411,6 +424,9 @@ _icstr_init_gui(gpointer data)
 {
 	IceStreamer *self = data;
 	struct icsr_gui *gui = &self->gui;
+	g_autoptr (GtkCssProvider) provider = NULL;
+	g_autoptr (GdkScreen) screen = NULL;
+	g_autoptr (GtkStyleContext) context = NULL;
 
 	/* Create top level window */
 	gui->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -420,6 +436,16 @@ _icstr_init_gui(gpointer data)
 	/* Add event handler for closing the window */
 	g_signal_connect(gui->window, "destroy", G_CALLBACK(_icstr_gui_destroy),
 			 self);
+
+	/* CSS Stuff */
+	provider = gtk_css_provider_new();
+	if(!provider)
+		goto cleanup;
+	screen = gtk_widget_get_screen(gui->window);
+	gtk_style_context_add_provider_for_screen(screen,
+					GTK_STYLE_PROVIDER(provider),
+					GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+	gtk_css_provider_load_from_data(provider, css_style, -1, NULL);
 
 	/* Top containers, one hbox and one vbox to create a grid */
 	gui->container = gtk_scrolled_window_new (NULL, NULL);
@@ -454,6 +480,8 @@ _icstr_init_gui(gpointer data)
 	if(!gui->time_label)
 		goto cleanup;
 	gtk_box_pack_start (GTK_BOX(gui->source_box), gui->time_label, TRUE, FALSE, 3);
+	context = gtk_widget_get_style_context(gui->time_label);
+	gtk_style_context_add_class(context,"time_label");
 
 	gui->levels_box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 3);
 	if(!gui->levels_box)
