@@ -22,12 +22,25 @@
 struct status_widget_map {
 	GtkWidget *stream_box;
 	GstElement *shout2send;
+	guint      *gui_status;
 };
 
-void
-icstr_gui_destroy(IceStreamer *self)
+static void
+_icstr_gui_destroy (GtkWidget *widget,
+		   gpointer   data)
 {
+	IceStreamer *self = data;
+	struct icsr_gui *gui = &self->gui;
+	gui->status = ICSTR_GUI_DONE;
 	gtk_main_quit();
+}
+
+void
+icstr_gui_destroy (IceStreamer *self)
+{
+	struct icsr_gui *gui = &self->gui;
+	if (gui->status != ICSTR_GUI_DONE)
+		gtk_widget_destroy(GTK_WIDGET(gui->window));
 }
 
 static gboolean
@@ -161,6 +174,11 @@ icstr_gui_update_stream_status(gpointer data)
 	GtkWidget *new_status_widget = NULL;
 	g_autoptr (GList) children = NULL;
 
+	if ((*wmap->gui_status) != ICSTR_GUI_READY) {
+		g_print("Called stream status update on gui, while gui inactive\n");
+		return FALSE;
+	}
+
 	children = gtk_container_get_children (GTK_CONTAINER(wmap->stream_box));
 	if (!children)
 		return FALSE;
@@ -277,6 +295,7 @@ icstr_gui_add_stream(IceStreamer *self, GstElement *stream_bin)
 
 	g_timeout_add (1000, icstr_gui_update_stream_status, wmap);
 
+	wmap->gui_status = &gui->status;
 	counter++;
 
 	return;
@@ -299,30 +318,40 @@ icstr_gui_add_streams(IceStreamer *self)
 	return;
 }
 
-void
+guint
 icstr_gui_update_time_label(IceStreamer *self, GstClockTime tstamp)
 {
 	struct icsr_gui *gui = &self->gui;
 	g_autofree gchar *tl_markup = NULL;
 
+	if (gui->status != ICSTR_GUI_READY)
+		return gui->status;
+
 	tl_markup = g_markup_printf_escaped ("<tt>%"GST_TIME_FORMAT"</tt>",
 					     GST_TIME_ARGS(tstamp));
 
 	gtk_label_set_markup (GTK_LABEL(gui->time_label), tl_markup);
-	return;
+	return gui->status;
 }
 
-void
+guint
 icstr_gui_update_levels(IceStreamer *self, double rms_l, double rms_r)
 {
 	struct icsr_gui *gui = &self->gui;
-	double rms_l_normalized = pow(10, rms_l / 20);
-	double rms_r_normalized = pow(10, rms_r / 20);
+	double rms_l_normalized = 0.0L;
+	double rms_r_normalized = 0.0L;
+
+	if (gui->status != ICSTR_GUI_READY)
+		return gui->status;
+
+	rms_l_normalized = pow(10, rms_l / 20);
+	rms_r_normalized = pow(10, rms_r / 20);
+
 	gtk_level_bar_set_value (GTK_LEVEL_BAR(gui->level_l),
                          rms_l_normalized);
 	gtk_level_bar_set_value (GTK_LEVEL_BAR(gui->level_r),
                          rms_r_normalized);
-	return;
+	return gui->status;
 }
 
 gpointer
@@ -338,8 +367,8 @@ _icstr_init_gui(gpointer data)
 	gtk_window_set_title(GTK_WINDOW(gui->window), "Icestreamer");
 	gtk_widget_set_size_request (gui->window, 280, 280);
 	/* Add event handler for closing the window */
-	g_signal_connect(gui->window, "delete-event", G_CALLBACK(icstr_gui_destroy),
-			 NULL);
+	g_signal_connect(gui->window, "destroy", G_CALLBACK(_icstr_gui_destroy),
+			 self);
 
 	/* Top containers, one hbox and one vbox to create a grid */
 	gui->container = gtk_scrolled_window_new (NULL, NULL);
@@ -402,6 +431,8 @@ _icstr_init_gui(gpointer data)
 	icstr_gui_add_streams(self);
 
 	gtk_widget_show_all(gui->window);
+
+	gui->status = ICSTR_GUI_READY;
 
         gtk_main();
 

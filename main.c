@@ -167,6 +167,9 @@ icstr_exit_handler (gpointer data)
   g_object_unref (self->mtdat_file_monitor);
   g_object_unref (self->mtdat_file);
   gst_tag_list_unref (self->tags);
+#ifndef DISABLE_GUI
+  icstr_gui_destroy (self);
+#endif
   g_main_loop_quit (self->loop);
   return G_SOURCE_REMOVE;
 }
@@ -242,6 +245,7 @@ icstr_bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
       GValueArray *rms_arr = NULL;
       const GstStructure *s = gst_message_get_structure (msg);
       const gchar *name = gst_structure_get_name (s);
+      guint ret = 0;
 
       if (strcmp (name, "level") != 0)
         break;
@@ -249,7 +253,15 @@ icstr_bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
       if (!gst_structure_get_clock_time (s, "running-time", &running_time))
         g_warning ("Could not parse running-time");
 
-      icstr_gui_update_time_label(self, running_time);
+      ret = icstr_gui_update_time_label(self, running_time);
+      if (ret == ICSTR_GUI_DONE) {
+        g_warning ("Tried to update time label on inactive gui, terminating\n");
+        icstr_exit_handler (self);
+        break;
+      } else if (ret == ICSTR_GUI_DISABLED) {
+        /* GUI not ready yet */
+        break;
+      }
 
       /* the values are packed into GValueArrays with the value per channel */
       array_val = gst_structure_get_value (s, "rms");
@@ -258,14 +270,19 @@ icstr_bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
       /* we can get the number of channels as the length of any of the value
        * arrays */
       if (rms_arr->n_values != 2) {
-        g_warning ("Got wrong number of channels while updating levels on gui\n");
+        g_warning ("Got wrong number of channels while updating levels on gui, terminating\n");
+        icstr_exit_handler (self);
         break;
       }
 
       rms_l = g_value_get_double(rms_arr->values + 0);
       rms_r = g_value_get_double(rms_arr->values + 1);
 
-      icstr_gui_update_levels(self, rms_l, rms_r);
+      ret = icstr_gui_update_levels(self, rms_l, rms_r);
+      if (ret == ICSTR_GUI_DONE) {
+        g_warning ("Tried to update gain levels on inactive gui, terminating\n");
+        icstr_exit_handler (self);
+      }
 
       break;
     }
