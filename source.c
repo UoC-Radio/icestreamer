@@ -41,7 +41,7 @@ icstr_construct_source (IceStreamer *self, GKeyFile *keyfile, GError **error)
     element_factory = "audiotestsrc";
 
   if (!element_factory) {
-    g_set_error (error, 0, 0, "Unknown source: %s\n", value);
+    g_set_error (error, ICSTR_ERROR, 0, "Unknown source: %s", value);
     return NULL;
   }
 
@@ -50,8 +50,8 @@ icstr_construct_source (IceStreamer *self, GKeyFile *keyfile, GError **error)
 
   element = gst_element_factory_make (element_factory, NULL);
   if (!element) {
-    g_set_error (error, 0, 0,
-                 "Failed to construct source element (source = %s, factory = %s)\n",
+    g_set_error (error, ICSTR_ERROR, 0,
+                 "Failed to construct source element (source = %s, factory = %s)",
                  value, element_factory);
     return NULL;
   }
@@ -77,7 +77,7 @@ icstr_construct_source (IceStreamer *self, GKeyFile *keyfile, GError **error)
   /* make sure it works */
   if (gst_element_set_state (element, GST_STATE_READY)
       != GST_STATE_CHANGE_SUCCESS) {
-    g_set_error (error, 0, 0, "Failed to activate input element");
+    g_set_error (error, ICSTR_ERROR, 0, "Failed to activate input element");
     return NULL;
   }
 

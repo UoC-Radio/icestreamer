@@ -24,6 +24,12 @@
 /* ammount of seconds to wait before attempting to reconnect a stream */
 #define RECONNECT_TIMEOUT 5
 
+GST_DEBUG_CATEGORY_EXTERN (icestreamer_debug);
+#define GST_CAT_DEFAULT icestreamer_debug
+
+GQuark icstr_error_domain_quark (void);
+#define ICSTR_ERROR (icstr_error_domain_quark ())
+
 #ifndef DISABLE_GUI
 #include <gtk/gtk.h>
 struct icsr_gui {

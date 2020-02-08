@@ -324,7 +324,7 @@ icstr_gui_add_stream(IceStreamer *self, GstElement *stream_bin)
 
 	return;
  fail:
-	g_error ("Couldn't add stream to gui\n");
+	g_printerr ("Couldn't add stream to gui\n");
 	return;
 }
 

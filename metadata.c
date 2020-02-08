@@ -36,9 +36,9 @@ icstr_update_metadata_callback (GFileMonitor *monitor,
 
   if (event_type != G_FILE_MONITOR_EVENT_CHANGED &&
       event_type != G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT) {
-    g_error ("Something weird happened to the metadata file (%u),\n",
+    GST_WARNING ("Something weird happened to the metadata file (%u),",
              event_type);
-    g_error ("disabling metadata monitor.\n");
+    GST_WARNING ("  disabling metadata monitor.");
     g_file_monitor_cancel (monitor);
     g_object_unref (monitor);
     g_object_unref (file);
@@ -47,8 +47,8 @@ icstr_update_metadata_callback (GFileMonitor *monitor,
 
   file_bytes = g_file_load_bytes (file, NULL, NULL, &error);
   if (error) {
-    g_error ("Couldn't read metadata file: %s,\n", error->message);
-    g_error ("disabling metadata monitor.\n");
+    GST_WARNING ("Couldn't read metadata file: %s,", error->message);
+    GST_WARNING ("  disabling metadata monitor.");
     g_file_monitor_cancel (monitor);
     g_object_unref (monitor);
     g_object_unref (file);
@@ -58,32 +58,32 @@ icstr_update_metadata_callback (GFileMonitor *monitor,
   file_contents = (gchar *) g_bytes_unref_to_data (file_bytes, &file_len);
 
   if (!strnlen (file_contents, file_len)) {
-    g_warning ("Got malformed metadata\n");
+    GST_WARNING ("Got malformed metadata");
     return;
   }
 
   if (!g_utf8_validate_len (file_contents, file_len, NULL)) {
-    g_warning ("Got malformed metadata\n");
+    GST_WARNING ("Got malformed metadata");
     return;
   }
 
   file_contents = g_strstrip (file_contents);
 
   if (!g_strrstr (file_contents, "\n")) {
-    g_warning ("Got malformed metadata\n");
+    GST_WARNING ("Got malformed metadata");
     return;
   }
 
   metadata = g_strsplit (file_contents, "\n", 3);
   if (g_strv_length (metadata) != 2) {
-    g_warning ("Got malformed metadata\n");
+    GST_WARNING ("Got malformed metadata");
     return;
   }
 
   artist = g_str_to_ascii (metadata[0], NULL);
   title = g_str_to_ascii (metadata[1], NULL);
 
-  GST_DEBUG ("Got metadata: a: %s t: %s\n", artist, title);
+  GST_DEBUG ("Got metadata: a: %s t: %s", artist, title);
 
   if (!self->tags)
     self->tags = gst_tag_list_new_empty ();
@@ -96,7 +96,7 @@ icstr_update_metadata_callback (GFileMonitor *monitor,
 
   tag_event = gst_event_new_tag (self->tags);
   if (!gst_element_send_event (self->pipeline, tag_event))
-    g_warning ("Failed to send tag event\n");
+    GST_WARNING ("Failed to send tag event");
 
   return;
 }
@@ -114,25 +114,24 @@ icstr_setup_metadata_handler (IceStreamer * self, GKeyFile * keyfile,
 
   filename =
       g_key_file_get_string (keyfile, "metadata", "file", &internal_error);
-  if (internal_error) {
-    g_set_error (error, 0, 0, "No metadata file provided: %s\n",
-                 internal_error->message);
+  if (!filename) {
+    g_propagate_prefixed_error (error, internal_error,
+        "No metadata file provided:");
     return FALSE;
   }
 
   mtdat_file = g_file_new_for_path (filename);
   if (!g_file_query_exists (mtdat_file, NULL)) {
-    g_set_error (error, 0, 0, "Provided metadata file doesn't exist\n");
+    g_set_error (error, ICSTR_ERROR, 0, "Provided metadata file doesn't exist");
     return FALSE;
   }
 
   cancellable = g_cancellable_new ();
   mtdat_file_monitor = g_file_monitor_file (mtdat_file, G_FILE_MONITOR_NONE,
                                             cancellable, &internal_error);
-  if (internal_error) {
-    g_set_error (error, 0, 0,
-        "Could not initialize metadata file monitor: %s\n",
-        internal_error->message);
+  if (!mtdat_file_monitor) {
+    g_propagate_prefixed_error (error, internal_error,
+        "Could not initialize metadata file monitor:");
     g_object_unref (mtdat_file);
     return FALSE;
   }
@@ -140,7 +139,8 @@ icstr_setup_metadata_handler (IceStreamer * self, GKeyFile * keyfile,
   ret = g_signal_connect (mtdat_file_monitor, "changed",
                           G_CALLBACK (icstr_update_metadata_callback), self);
   if (ret <= 0) {
-    g_set_error (error, 0, 0, "Could not connect to metadata file monitor\n");
+    g_set_error (error, ICSTR_ERROR, 0,
+        "Could not connect to metadata file monitor");
     g_file_monitor_cancel (mtdat_file_monitor);
     g_object_unref (mtdat_file_monitor);
     g_object_unref (mtdat_file);

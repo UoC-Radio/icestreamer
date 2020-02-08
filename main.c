@@ -18,8 +18,8 @@
  */
 #include "icestreamer.h"
 
-GST_DEBUG_CATEGORY_STATIC (icestreamer_debug);
-#define GST_CAT_DEFAULT icestreamer_debug
+GST_DEBUG_CATEGORY (icestreamer_debug);
+G_DEFINE_QUARK (icestreamer-error-domain, icstr_error_domain);
 
 static void
 ice_streamer_free (IceStreamer * streamer)
@@ -42,18 +42,18 @@ icstr_load (IceStreamer *self, const gchar *conf_file, gboolean show_gui)
   gchar **group;
   guint streams_linked = 0;
 
-  GST_INFO ("Loading IceStreamer using configuration file: %s", conf_file);
+  GST_DEBUG ("Loading IceStreamer using configuration file: %s", conf_file);
 
   keyfile = g_key_file_new ();
   if (!g_key_file_load_from_file (keyfile, conf_file, G_KEY_FILE_NONE, &error)) {
-    g_error ("Failed to load configuration file '%s': %s\n", conf_file,
+    GST_ERROR ("Failed to load configuration file '%s': %s", conf_file,
              error->message);
     return FALSE;
   }
 
   source = icstr_construct_source (self, keyfile, &error);
   if (!source) {
-    g_error ("%s\n", error->message);
+    GST_ERROR ("%s", error->message);
     return FALSE;
   }
 
@@ -64,7 +64,7 @@ icstr_load (IceStreamer *self, const gchar *conf_file, gboolean show_gui)
   gst_bin_add_many (GST_BIN (self->pipeline), source, self->tee, NULL);
 
   if (!gst_element_link (source, self->tee)) {
-    g_error ("Failed to link source with tee\n");
+    GST_ERROR ("Failed to link source with tee");
     return FALSE;
   }
 
@@ -78,13 +78,13 @@ icstr_load (IceStreamer *self, const gchar *conf_file, gboolean show_gui)
     gst_bin_add_many (GST_BIN (self->pipeline), self->audioconvert, self->level, NULL);
 
     if (!gst_element_link (self->tee, self->audioconvert)) {
-      g_error ("Failed to link tee with audioconvert\n");
+      GST_ERROR ("Failed to link tee with audioconvert");
       return FALSE;
     }
 
     caps = gst_caps_from_string ("audio/x-raw,channels=2");
     if (!gst_element_link_filtered (self->audioconvert, self->level, caps)) {
-      g_error ("Failed to link source with level\n");
+      GST_ERROR ("Failed to link source with level");
       return FALSE;
     }
   }
@@ -109,7 +109,7 @@ icstr_load (IceStreamer *self, const gchar *conf_file, gboolean show_gui)
     stream = icstr_construct_stream (self, keyfile, *group, &error);
 
     if (error) {
-      g_error ("Failed to construct stream: %s\n", error->message);
+      GST_WARNING ("Failed to construct stream: %s", error->message);
       g_clear_error (&error);
       continue;
     }
@@ -124,13 +124,13 @@ icstr_load (IceStreamer *self, const gchar *conf_file, gboolean show_gui)
   g_strfreev (groups);
 
   if (streams_linked == 0) {
-    g_error ("No streams specified in the configuration file\n");
+    GST_ERROR ("No streams specified in the configuration file");
     return FALSE;
   }
 
   icstr_setup_metadata_handler (self, keyfile, &error);
   if (error)
-    g_error ("%s\n", error->message);
+    GST_WARNING ("%s", error->message);
 
   return TRUE;
 }
@@ -144,7 +144,7 @@ icstr_reconnect_timeout_callback (gpointer data)
   for (curr = self->disconnected_streams; curr != NULL;
       curr = g_list_next (curr)) {
     GstElement *stream = curr->data;
-    g_message ("Reconnecting %s", GST_OBJECT_NAME (stream));
+    GST_INFO ("Reconnecting %s", GST_OBJECT_NAME (stream));
     gst_element_set_state (stream, GST_STATE_PLAYING);
     gst_element_link_pads (self->tee, "src_%u", stream, "sink");
   }
@@ -186,7 +186,7 @@ icstr_bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
       g_autofree gchar *debug = NULL;
 
       gst_message_parse_warning (msg, &error, &debug);
-      GST_WARNING ("GStreamer warning: %s (%s)\n", error->message, debug);
+      GST_WARNING ("GStreamer warning: %s (%s)", error->message, debug);
 
       break;
     }
@@ -205,9 +205,8 @@ icstr_bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
         g_autoptr (GstElement) stream_bin = NULL;
         g_autoptr (GstPad) bin_sinkpad = NULL, tee_srcpad = NULL;
 
-        GST_WARNING ("Encountered a fatal network send error (%s)", debug);
-        g_warning ("Network error for %s: %s\n", GST_MESSAGE_SRC_NAME (msg),
-                   error->message);
+        GST_WARNING ("Network error for %s: %s (%s)", GST_MESSAGE_SRC_NAME (msg),
+                   error->message, debug);
 
         stream_bin = GST_ELEMENT (gst_object_get_parent (GST_MESSAGE_SRC (msg)));
         bin_sinkpad = gst_element_get_static_pad (stream_bin, "sink");
@@ -227,7 +226,7 @@ icstr_bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
         /*
          * Any other error is fatal - report & exit
          */
-        g_error ("GStreamer reported a fatal error: %s (%s)\n", error->message,
+        GST_ERROR ("GStreamer reported a fatal error: %s (%s)", error->message,
                  debug);
         icstr_exit_handler (self);
       }
@@ -251,11 +250,11 @@ icstr_bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
         break;
 
       if (!gst_structure_get_clock_time (s, "running-time", &running_time))
-        g_warning ("Could not parse running-time");
+        GST_WARNING ("Could not parse running-time");
 
       ret = icstr_gui_update_time_label(self, running_time);
       if (ret == ICSTR_GUI_DONE) {
-        g_warning ("Tried to update time label on inactive gui, terminating\n");
+        GST_ERROR ("Tried to update time label on inactive gui, terminating");
         icstr_exit_handler (self);
         break;
       } else if (ret == ICSTR_GUI_DISABLED) {
@@ -270,7 +269,7 @@ icstr_bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
       /* we can get the number of channels as the length of any of the value
        * arrays */
       if (rms_arr->n_values != 2) {
-        g_warning ("Got wrong number of channels while updating levels on gui, terminating\n");
+        GST_ERROR ("Got wrong number of channels while updating levels on gui, terminating");
         icstr_exit_handler (self);
         break;
       }
@@ -280,7 +279,7 @@ icstr_bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
 
       ret = icstr_gui_update_levels(self, rms_l, rms_r);
       if (ret == ICSTR_GUI_DONE) {
-        g_warning ("Tried to update gain levels on inactive gui, terminating\n");
+        GST_ERROR ("Tried to update gain levels on inactive gui, terminating");
         icstr_exit_handler (self);
       }
 
@@ -311,9 +310,9 @@ icstr_run (IceStreamer *self)
 
   gst_element_set_state (self->pipeline, GST_STATE_PLAYING);
 
-  GST_INFO ("Entering main loop");
+  GST_DEBUG ("Entering main loop");
   g_main_loop_run (loop);
-  GST_INFO ("Exiting...");
+  GST_DEBUG ("Exiting...");
 
   gst_element_set_state (self->pipeline, GST_STATE_NULL);
   self->loop = NULL;
@@ -339,6 +338,7 @@ main (gint argc, gchar **argv)
   };
 
   GST_DEBUG_CATEGORY_INIT (icestreamer_debug, "icestreamer", 0, "IceStreamer");
+  gst_debug_set_threshold_from_string ("icestreamer:INFO", FALSE);
 
   /* cmd line option parsing */
 
@@ -348,14 +348,14 @@ main (gint argc, gchar **argv)
   g_option_context_add_group (context, gst_init_get_option_group ());
 
   if (!g_option_context_parse (context, &argc, &argv, &error)) {
-    g_error ("Option parsing failed: %s\n", error->message);
+    g_printerr ("Option parsing failed: %s\n", error->message);
     return 1;
   }
 
   /* verify provided files exist */
   if (!g_file_test (conf_file, G_FILE_TEST_IS_REGULAR)) {
-    g_error ("No configuration file provided\n");
-    g_print ("\n%s", g_option_context_get_help (context, TRUE, NULL));
+    g_printerr ("No configuration file provided\n");
+    g_printerr ("\n%s", g_option_context_get_help (context, TRUE, NULL));
     return 1;
   }
 

@@ -51,9 +51,7 @@ icstr_construct_stream (IceStreamer *self,
   }
 
   if (!encoder_factory) {
-    g_set_error (error, 0, 0,
-                 "Unknown encoder: %s\n",
-                 value);
+    g_set_error (error, ICSTR_ERROR, 0, "Unknown encoder: %s", value);
     return NULL;
   }
 
@@ -68,8 +66,7 @@ icstr_construct_stream (IceStreamer *self,
     }
 
     if (!mux_factory) {
-      g_set_error (error, 0, 0,
-          "Unknown container: %s\n", value);
+      g_set_error (error, ICSTR_ERROR, 0, "Unknown container: %s", value);
       return NULL;
     }
 
@@ -82,8 +79,8 @@ icstr_construct_stream (IceStreamer *self,
   encoder = icstr_element_factory_make_with_group_name (encoder_factory,
                                                         group);
   if (!encoder) {
-    g_set_error (error, 0, 0,
-                 "Failed to construct encoder element (%s) for stream '%s'\n",
+    g_set_error (error, ICSTR_ERROR, 0,
+                 "Failed to construct encoder element (%s) for stream '%s'",
                  encoder_factory, group);
     return NULL;
   }
@@ -104,8 +101,8 @@ icstr_construct_stream (IceStreamer *self,
     /* construct mux */
     mux = icstr_element_factory_make_with_group_name (mux_factory, group);
     if (!mux) {
-      g_set_error (error, 0, 0,
-          "Failed to construct mux element (%s) for stream '%s'\n", mux_factory,
+      g_set_error (error, ICSTR_ERROR, 0,
+          "Failed to construct mux element (%s) for stream '%s'", mux_factory,
           group);
       return NULL;
     }
@@ -117,9 +114,9 @@ icstr_construct_stream (IceStreamer *self,
   /* construct shout2send */
   shout2send = icstr_element_factory_make_with_group_name ("shout2send", group);
   if (!shout2send) {
-    g_set_error (error, 0, 0,
+    g_set_error (error, ICSTR_ERROR, 0,
         "Failed to construct shout2send element "
-        "- verify your GStreamer installation\n");
+        "- verify your GStreamer installation");
     return NULL;
   }
   g_object_set (shout2send, "streamname", group, NULL);
@@ -156,8 +153,8 @@ icstr_construct_stream (IceStreamer *self,
     link_res = gst_element_link_many (queue, convert, resample, encoder,
                                       shout2send, NULL);
   if (!link_res) {
-    g_set_error (error, 0, 0, "Failed to link pipeline for stream '%s'\n",
-                 group);
+    g_set_error (error, ICSTR_ERROR, 0,
+        "Failed to link pipeline for stream '%s'", group);
     return NULL;
   }
 
