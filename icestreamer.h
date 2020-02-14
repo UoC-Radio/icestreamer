@@ -103,8 +103,8 @@ icstr_setup_metadata_handler (IceStreamer *self, GKeyFile *keyfile,
 
 #ifndef DISABLE_GUI
 /* gui.c */
-gboolean
-icstr_init_gui(IceStreamer *self, guint *argc, gchar ***argv);
+void
+icstr_init_gui(IceStreamer *self);
 void
 icstr_gui_update_levels(IceStreamer *self, double rms_l, double rms_r);
 void

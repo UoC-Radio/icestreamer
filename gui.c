@@ -320,8 +320,6 @@ icstr_gui_add_streams(IceStreamer *self)
 		stream_bin = curr->data;
 		icstr_gui_add_stream(self, stream_bin);
 	}
-
-	return;
 }
 
 void
@@ -393,8 +391,8 @@ icstr_main_window_set_geometry(GtkWindow *window, GtkStateFlags flags, gpointer 
 	done = 1;
 }
 
-static void
-_icstr_init_gui (IceStreamer *self)
+void
+icstr_init_gui (IceStreamer *self)
 {
 	struct icsr_gui *gui = &self->gui;
 	g_autoptr (GtkCssProvider) provider = NULL;
@@ -495,12 +493,4 @@ _icstr_init_gui (IceStreamer *self)
 
  cleanup:
 	return;
-}
-
-gboolean
-icstr_init_gui(IceStreamer *self, guint *argc, gchar ***argv)
-{
-	gtk_init(argc, argv);
-	_icstr_init_gui (self);
-	return TRUE;
 }

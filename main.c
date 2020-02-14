@@ -353,9 +353,10 @@ main (gint argc, gchar **argv)
     return 1;
 
 #ifndef DISABLE_GUI
-  if (show_gui)
-    /* Initialize gtk and start gui thread */
-    icstr_init_gui(self, &argc, &argv);
+  if (show_gui) {
+    gtk_init (&argc, &argv);
+    icstr_init_gui (self);
+  }
 #endif
 
   /* enter main loop */
