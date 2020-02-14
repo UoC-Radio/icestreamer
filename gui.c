@@ -39,7 +39,8 @@ void
 icstr_gui_destroy (IceStreamer *self)
 {
 	struct icsr_gui *gui = &self->gui;
-	gtk_widget_destroy(GTK_WIDGET(gui->window));
+	if (gui->window)
+		gtk_widget_destroy(GTK_WIDGET(gui->window));
 }
 
 static gboolean
