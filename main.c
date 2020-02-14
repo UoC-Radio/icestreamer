@@ -164,9 +164,9 @@ icstr_exit_handler (gpointer data)
 {
   IceStreamer *self = data;
   g_file_monitor_cancel (self->mtdat_file_monitor);
-  g_object_unref (self->mtdat_file_monitor);
-  g_object_unref (self->mtdat_file);
-  gst_tag_list_unref (self->tags);
+  g_clear_object (&self->mtdat_file_monitor);
+  g_clear_object (&self->mtdat_file);
+  g_clear_pointer (&self->tags, gst_tag_list_unref);
 #ifndef DISABLE_GUI
   icstr_gui_destroy (self);
 #endif
