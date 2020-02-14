@@ -244,7 +244,6 @@ icstr_bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
       GValueArray *rms_arr = NULL;
       const GstStructure *s = gst_message_get_structure (msg);
       const gchar *name = gst_structure_get_name (s);
-      guint ret = 0;
 
       if (strcmp (name, "level") != 0)
         break;
@@ -252,15 +251,7 @@ icstr_bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
       if (!gst_structure_get_clock_time (s, "running-time", &running_time))
         GST_WARNING ("Could not parse running-time");
 
-      ret = icstr_gui_update_time_label(self, running_time);
-      if (ret == ICSTR_GUI_DONE) {
-        GST_ERROR ("Tried to update time label on inactive gui, terminating");
-        icstr_exit_handler (self);
-        break;
-      } else if (ret == ICSTR_GUI_DISABLED) {
-        /* GUI not ready yet */
-        break;
-      }
+      icstr_gui_update_time_label(self, running_time);
 
       /* the values are packed into GValueArrays with the value per channel */
       array_val = gst_structure_get_value (s, "rms");
@@ -277,12 +268,7 @@ icstr_bus_callback (GstBus *bus, GstMessage *msg, gpointer data)
       rms_l = g_value_get_double(rms_arr->values + 0);
       rms_r = g_value_get_double(rms_arr->values + 1);
 
-      ret = icstr_gui_update_levels(self, rms_l, rms_r);
-      if (ret == ICSTR_GUI_DONE) {
-        GST_ERROR ("Tried to update gain levels on inactive gui, terminating");
-        icstr_exit_handler (self);
-      }
-
+      icstr_gui_update_levels(self, rms_l, rms_r);
       break;
     }
 #endif

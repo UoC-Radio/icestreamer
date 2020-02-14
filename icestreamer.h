@@ -45,18 +45,11 @@ struct icsr_gui {
   GtkWidget* level_r;
   GtkWidget* streams_frame;
   GtkWidget* streams_box;
-  guint      status;
   guint      stream_counter;
   guint      max_width;
   guint      max_height;
   guint      base_height;
   guint      height_inc;
-};
-
-enum gui_status {
-  ICSTR_GUI_DISABLED = 0,
-  ICSTR_GUI_READY = 1,
-  ICSTR_GUI_DONE = 2
 };
 #endif
 
@@ -112,9 +105,9 @@ icstr_setup_metadata_handler (IceStreamer *self, GKeyFile *keyfile,
 /* gui.c */
 gboolean
 icstr_init_gui(IceStreamer *self, guint *argc, gchar ***argv);
-guint
+void
 icstr_gui_update_levels(IceStreamer *self, double rms_l, double rms_r);
-guint
+void
 icstr_gui_update_time_label(IceStreamer *self, GstClockTime tstamp);
 void
 icstr_gui_destroy (IceStreamer *self);
