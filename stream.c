@@ -162,7 +162,6 @@ icstr_construct_stream (IceStreamer *self,
   gst_element_add_pad (bin, gst_ghost_pad_new ("sink", target));
 
   tagsetter = GST_TAG_SETTER (shout2send);
-
   gst_tag_setter_set_tag_merge_mode (tagsetter, GST_TAG_MERGE_REPLACE);
 
   return g_steal_pointer (&bin);

@@ -24,14 +24,14 @@ icstr_update_metadata_callback (GFileMonitor *monitor,
     GFile *file, GFile *other_file, GFileMonitorEvent event_type, gpointer data)
 {
   IceStreamer *self = data;
-  GBytes *file_bytes = NULL;
   g_autoptr (GError) error = NULL;
-  g_autofree gchar **metadata = NULL;
+  GBytes *file_bytes = NULL;
+  g_autofree gchar *file_contents = NULL;
+  gchar *sanitized_contents = NULL;
+  g_auto(GStrv) metadata = NULL;
   g_autofree gchar *artist = NULL;
   g_autofree gchar *title = NULL;
-  g_autofree gchar *file_contents = NULL;
   GstEvent *tag_event = NULL;
-  GList *curr = NULL;
   gsize file_len = 0;
 
   if (event_type != G_FILE_MONITOR_EVENT_CHANGED &&
@@ -40,8 +40,6 @@ icstr_update_metadata_callback (GFileMonitor *monitor,
              event_type);
     GST_WARNING ("  disabling metadata monitor.");
     g_file_monitor_cancel (monitor);
-    g_object_unref (monitor);
-    g_object_unref (file);
     return;
   }
 
@@ -50,8 +48,6 @@ icstr_update_metadata_callback (GFileMonitor *monitor,
     GST_WARNING ("Couldn't read metadata file: %s,", error->message);
     GST_WARNING ("  disabling metadata monitor.");
     g_file_monitor_cancel (monitor);
-    g_object_unref (monitor);
-    g_object_unref (file);
     return;
   }
 
@@ -67,14 +63,14 @@ icstr_update_metadata_callback (GFileMonitor *monitor,
     return;
   }
 
-  file_contents = g_strstrip (file_contents);
+  sanitized_contents = g_strstrip (file_contents);
 
-  if (!g_strrstr (file_contents, "\n")) {
+  if (!g_strrstr (sanitized_contents, "\n")) {
     GST_WARNING ("Got malformed metadata");
     return;
   }
 
-  metadata = g_strsplit (file_contents, "\n", 3);
+  metadata = g_strsplit (sanitized_contents, "\n", 3);
   if (g_strv_length (metadata) != 2) {
     GST_WARNING ("Got malformed metadata");
     return;
@@ -106,10 +102,9 @@ icstr_setup_metadata_handler (IceStreamer * self, GKeyFile * keyfile,
     GError ** error)
 {
   g_autofree gchar *filename = NULL;
-  GCancellable *cancellable = NULL;
   g_autoptr (GError) internal_error = NULL;
-  GFile *mtdat_file = NULL;
-  GFileMonitor *mtdat_file_monitor = NULL;
+  g_autoptr (GFile) mtdat_file = NULL;
+  g_autoptr (GFileMonitor) mtdat_file_monitor = NULL;
   guint ret = 0;
 
   filename =
@@ -126,13 +121,11 @@ icstr_setup_metadata_handler (IceStreamer * self, GKeyFile * keyfile,
     return FALSE;
   }
 
-  cancellable = g_cancellable_new ();
   mtdat_file_monitor = g_file_monitor_file (mtdat_file, G_FILE_MONITOR_NONE,
-                                            cancellable, &internal_error);
+                                            NULL, &internal_error);
   if (!mtdat_file_monitor) {
     g_propagate_prefixed_error (error, internal_error,
         "Could not initialize metadata file monitor:");
-    g_object_unref (mtdat_file);
     return FALSE;
   }
 
@@ -141,17 +134,14 @@ icstr_setup_metadata_handler (IceStreamer * self, GKeyFile * keyfile,
   if (ret <= 0) {
     g_set_error (error, ICSTR_ERROR, 0,
         "Could not connect to metadata file monitor");
-    g_file_monitor_cancel (mtdat_file_monitor);
-    g_object_unref (mtdat_file_monitor);
-    g_object_unref (mtdat_file);
     return FALSE;
   }
 
-  self->mtdat_file = mtdat_file;
-  self->mtdat_file_monitor = mtdat_file_monitor;
+  self->mtdat_file = g_steal_pointer (&mtdat_file);
+  self->mtdat_file_monitor = g_steal_pointer (&mtdat_file_monitor);
 
   /* force an update */
-  icstr_update_metadata_callback (mtdat_file_monitor, mtdat_file,
+  icstr_update_metadata_callback (self->mtdat_file_monitor, self->mtdat_file,
                                   NULL, G_FILE_MONITOR_EVENT_CHANGED, self);
 
   return TRUE;
