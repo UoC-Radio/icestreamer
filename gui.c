@@ -35,6 +35,13 @@ struct status_widget_map {
 	GstElement *shout2send;
 };
 
+static void
+_icstr_gui_destroy (GtkWidget *widget, gpointer data)
+{
+	IceStreamer *self = data;
+	g_main_loop_quit (self->loop);
+}
+
 void
 icstr_gui_destroy (IceStreamer *self)
 {
@@ -406,8 +413,8 @@ icstr_init_gui (IceStreamer *self)
 		goto cleanup;
 	gtk_window_set_title(GTK_WINDOW(gui->window), "Icestreamer");
 	/* Add event handler for closing the window */
-	// g_signal_connect(gui->window, "destroy", G_CALLBACK(_icstr_gui_destroy),
-	// 		 self);
+	g_signal_connect(gui->window, "destroy", G_CALLBACK(_icstr_gui_destroy),
+			 self);
 
 	/* CSS Stuff */
 	provider = gtk_css_provider_new();
