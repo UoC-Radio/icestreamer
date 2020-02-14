@@ -57,10 +57,6 @@ typedef struct _IceStreamer IceStreamer;
 struct _IceStreamer
 {
   GstElement *pipeline;
-#ifndef DISABLE_GUI
-  GstElement *audioconvert;
-  GstElement *level;
-#endif
   GstElement *tee;              /* owned by the pipeline */
   GMainLoop *loop;              /* weak pointer, not owned by us */
   GList *streams;

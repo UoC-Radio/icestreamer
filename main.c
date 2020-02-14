@@ -70,21 +70,35 @@ icstr_load (IceStreamer *self, const gchar *conf_file, gboolean show_gui)
 
 #ifndef DISABLE_GUI
   if (show_gui) {
-    self->level = gst_element_factory_make ("level", NULL);
-    g_object_set (G_OBJECT (self->level), "post-messages", TRUE, NULL);
-    g_object_set (G_OBJECT (self->level), "interval", 85000000, NULL);
-    self->audioconvert = gst_element_factory_make ("audioconvert", NULL);
+    GstElement *audioconvert, *level, *fakesink;
 
-    gst_bin_add_many (GST_BIN (self->pipeline), self->audioconvert, self->level, NULL);
+    audioconvert = gst_element_factory_make ("audioconvert", NULL);
+    level = gst_element_factory_make ("level", NULL);
+    g_object_set (G_OBJECT (level),
+        "post-messages", TRUE,
+        "interval", 85000000,
+        NULL);
+    fakesink = gst_element_factory_make ("fakesink", NULL);
+    g_object_set (G_OBJECT (fakesink),
+        "sync", TRUE,
+        "enable-last-sample", FALSE,
+        NULL);
 
-    if (!gst_element_link (self->tee, self->audioconvert)) {
+    gst_bin_add_many (GST_BIN (self->pipeline), audioconvert, level, fakesink, NULL);
+
+    if (!gst_element_link (self->tee, audioconvert)) {
       GST_ERROR ("Failed to link tee with audioconvert");
       return FALSE;
     }
 
     caps = gst_caps_from_string ("audio/x-raw,channels=2");
-    if (!gst_element_link_filtered (self->audioconvert, self->level, caps)) {
+    if (!gst_element_link_filtered (audioconvert, level, caps)) {
       GST_ERROR ("Failed to link source with level");
+      return FALSE;
+    }
+
+    if (!gst_element_link (level, fakesink)) {
+      GST_ERROR ("Failed to link level with fakesink");
       return FALSE;
     }
   }
