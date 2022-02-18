@@ -37,6 +37,8 @@ icstr_construct_source (IceStreamer *self, GKeyFile *keyfile, GError **error)
     element_factory = "alsasrc";
   else if (g_str_equal (value, "pulse"))
     element_factory = "pulsesrc";
+  else if (g_str_equal (value, "pipewire"))
+    element_factory = "pipewiresrc";
   else if (g_str_equal (value, "test"))
     element_factory = "audiotestsrc";
 
