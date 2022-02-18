@@ -15,7 +15,8 @@ to timeout (see https://bugzilla.gnome.org/show_bug.cgi?id=571722 for details).
 Supported capture interfaces:
 * Jack
 * ALSA
-* Pulseaudio
+* PulseAudio
+* PipeWire
 
 Supported encoders:
 * Ogg/Vorbis
@@ -62,10 +63,16 @@ The configuration file should be in the following format:
     # Supported sources: jack, alsa, pulse, test, auto (the default)
     source=alsa
 
-    # Here you can set any properties of GStreamer's jackaudiosrc, alsasrc, pulsesrc
+    # Here you can set any properties of the source element:
+    # jackaudiosrc, alsasrc, pulsesrc, pipewiresrc
     # In this example, device is a property of alsasrc.
     # See 'gst-inspect-1.0 alsasrc' for documentation
     device=hw:0,0
+
+    # Additionally, input format, channels & rate can optionally be set here
+    #format=S16LE
+    #channels=2
+    #rate=48000
 
     [stream1]
     # Supported encoders: opus, vorbis, mp3
