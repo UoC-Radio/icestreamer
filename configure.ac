@@ -17,8 +17,9 @@ AC_PROG_CC
 # Check for libraries
 PKG_CHECK_MODULES(GStreamer,
 		   [
-			gstreamer-1.0 >= 1.0.0
-			gstreamer-base-1.0 >= 1.0.0
+			gstreamer-1.0 >= 1.14.0
+			gstreamer-base-1.0 >= 1.14.0
+			gstreamer-audio-1.0 >= 1.14.0
         	   ],
 		   [
 			AC_SUBST(GStreamer_CFLAGS)
